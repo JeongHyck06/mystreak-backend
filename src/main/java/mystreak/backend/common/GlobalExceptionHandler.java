@@ -1,6 +1,7 @@
 package mystreak.backend.common;
 
 import mystreak.backend.auth.SupabaseAuthException;
+import mystreak.backend.pod.PodNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -38,6 +39,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(exception.getStatusCode())
                 .body(new ApiErrorResponse(exception.getStatusCode().value(), exception.getReason()));
+    }
+
+    @ExceptionHandler(PodNotFoundException.class)
+    ResponseEntity<ApiErrorResponse> handlePodNotFoundException(PodNotFoundException exception) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(new ApiErrorResponse(HttpStatus.NOT_FOUND.value(), exception.getMessage()));
     }
 
     private String validationMessage(FieldError fieldError) {
