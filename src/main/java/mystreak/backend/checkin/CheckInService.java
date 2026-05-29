@@ -39,14 +39,15 @@ public class CheckInService {
     }
 
     @Transactional
-    public CheckInResponse createCheckIn(String podId, CreateCheckInRequest request) {
+    public CheckInResponse createCheckIn(String profileId, String podId, CreateCheckInRequest request) {
         String id = "feed-" + (countCheckIns() + 1);
         jdbcClient.sql("""
                         INSERT INTO check_ins (id, pod_id, author_id, meta, text, media_url, likes, comments, checked_by_me)
-                        VALUES (:id, :podId, 'me', '방금 전', :text, :mediaUrl, 0, 0, FALSE)
+                        VALUES (:id, :podId, :authorId, '방금 전', :text, :mediaUrl, 0, 0, FALSE)
                         """)
                 .param("id", id)
                 .param("podId", podId)
+                .param("authorId", profileId)
                 .param("text", request.text())
                 .param("mediaUrl", request.mediaUrl())
                 .update();

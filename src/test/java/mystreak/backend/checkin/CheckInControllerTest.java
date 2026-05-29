@@ -9,11 +9,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import mystreak.backend.auth.AuthService;
 import mystreak.backend.common.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,12 +32,17 @@ class CheckInControllerTest {
     @MockitoBean
     private CheckInService checkInService;
 
+    @MockitoBean
+    private AuthService authService;
+
     @Test
     void getPodFeedReturnsFeed() throws Exception {
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(checkInService.getPodFeed("running"))
                 .thenReturn(List.of(checkIn()));
 
-        mockMvc.perform(get("/api/pods/running/feed"))
+        mockMvc.perform(get("/api/pods/running/feed")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].author").value("일정형"))
                 .andExpect(jsonPath("$[0].likes").value(18));
@@ -43,10 +50,12 @@ class CheckInControllerTest {
 
     @Test
     void createCheckInReturnsCreatedFeedItem() throws Exception {
-        when(checkInService.createCheckIn(any(String.class), any(CreateCheckInRequest.class)))
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
+        when(checkInService.createCheckIn(any(String.class), any(String.class), any(CreateCheckInRequest.class)))
                 .thenReturn(new CheckInResponse("feed-3", "running", "김다혜", "방금 전 · 27일째", "오늘 날씨가 별로여서 간단하게 했어요", null, 0, 0, false));
 
         mockMvc.perform(post("/api/pods/running/check-ins")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateCheckInRequest("오늘 날씨가 별로여서 간단하게 했어요", null))))
                 .andExpect(status().isCreated())
@@ -55,10 +64,12 @@ class CheckInControllerTest {
 
     @Test
     void checkReturnsReactionState() throws Exception {
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(checkInService.check("feed-1"))
                 .thenReturn(new CheckReactionResponse("feed-1", true, 19));
 
-        mockMvc.perform(post("/api/check-ins/feed-1/checks"))
+        mockMvc.perform(post("/api/check-ins/feed-1/checks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.checkedByMe").value(true))
                 .andExpect(jsonPath("$.likes").value(19));
@@ -66,9 +77,11 @@ class CheckInControllerTest {
 
     @Test
     void missingCheckInReturns404() throws Exception {
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(checkInService.check("missing")).thenThrow(new CheckInNotFoundException("missing"));
 
-        mockMvc.perform(post("/api/check-ins/missing/checks"))
+        mockMvc.perform(post("/api/check-ins/missing/checks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
