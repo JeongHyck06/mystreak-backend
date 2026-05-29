@@ -12,13 +12,13 @@ public class ProfileService {
         this.jdbcClient = jdbcClient;
     }
 
-    public ProfileResponse getMyProfile() {
+    public ProfileResponse getMyProfile(String profileId) {
         return jdbcClient.sql("""
                         SELECT id, name, handle, email, bio, current_streak, best_streak, total_checks, trophies
                         FROM profiles
                         WHERE id = :id
                         """)
-                .param("id", "me")
+                .param("id", profileId)
                 .query((rs, rowNum) -> new ProfileResponse(
                         rs.getString("id"),
                         rs.getString("name"),
@@ -31,11 +31,11 @@ public class ProfileService {
                         rs.getInt("trophies")
                 ))
                 .optional()
-                .orElse(new ProfileResponse("me", "", "", "", "", 0, 0, 0, 0));
+                .orElse(new ProfileResponse(profileId, "", "", "", "", 0, 0, 0, 0));
     }
 
-    public ProfileResponse updateMyProfile(UpdateProfileRequest request) {
-        ProfileResponse current = getMyProfile();
+    public ProfileResponse updateMyProfile(String profileId, UpdateProfileRequest request) {
+        ProfileResponse current = getMyProfile(profileId);
         int updatedRows = jdbcClient.sql("""
                         UPDATE profiles
                         SET name = :name, handle = :handle, bio = :bio
@@ -60,6 +60,6 @@ public class ProfileService {
                     .update();
         }
 
-        return getMyProfile();
+        return getMyProfile(profileId);
     }
 }
