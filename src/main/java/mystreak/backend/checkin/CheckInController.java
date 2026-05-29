@@ -24,13 +24,13 @@ public class CheckInController {
         this.checkInService = checkInService;
     }
 
-    @Operation(summary = "List pod check-in feed")
+    @Operation(summary = "팟 인증 피드를 조회합니다")
     @GetMapping("/api/pods/{podId}/feed")
     public List<CheckInResponse> getPodFeed(@PathVariable String podId) {
         return checkInService.getPodFeed(podId);
     }
 
-    @Operation(summary = "Create a pod check-in")
+    @Operation(summary = "팟에 오늘의 인증을 등록합니다")
     @PostMapping("/api/pods/{podId}/check-ins")
     @ResponseStatus(HttpStatus.CREATED)
     public CheckInResponse createCheckIn(
@@ -40,7 +40,7 @@ public class CheckInController {
         return checkInService.createCheckIn(podId, request);
     }
 
-    @Operation(summary = "Check another member's check-in")
+    @Operation(summary = "다른 멤버의 인증을 체크합니다")
     @PostMapping("/api/check-ins/{checkInId}/checks")
     public CheckReactionResponse check(@PathVariable String checkInId) {
         return checkInService.check(checkInId);

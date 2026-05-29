@@ -21,13 +21,13 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
-    @Operation(summary = "List my notifications")
+    @Operation(summary = "내 알림 목록을 조회합니다")
     @GetMapping
     public List<NotificationResponse> getNotifications(@RequestParam(required = false) String type) {
         return notificationService.getNotifications(type);
     }
 
-    @Operation(summary = "Mark all notifications as read")
+    @Operation(summary = "모든 알림을 읽음 처리합니다")
     @PatchMapping("/read-all")
     public List<NotificationResponse> markAllRead() {
         return notificationService.markAllRead();

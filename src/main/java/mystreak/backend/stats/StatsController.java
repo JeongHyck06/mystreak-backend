@@ -19,7 +19,7 @@ public class StatsController {
         this.statsService = statsService;
     }
 
-    @Operation(summary = "Get my streak statistics")
+    @Operation(summary = "내 스트릭 통계를 조회합니다")
     @GetMapping("/me")
     public StatsResponse getMyStats(
             @RequestParam(required = false) Integer year,

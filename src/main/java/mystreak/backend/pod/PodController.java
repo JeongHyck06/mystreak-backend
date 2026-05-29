@@ -27,51 +27,51 @@ public class PodController {
         this.podService = podService;
     }
 
-    @Operation(summary = "List my pods")
+    @Operation(summary = "내가 참여 중인 팟 목록을 조회합니다")
     @GetMapping
     public List<PodResponse> getMyPods() {
         return podService.getMyPods();
     }
 
-    @Operation(summary = "Get pod detail")
+    @Operation(summary = "팟 상세 정보를 조회합니다")
     @GetMapping("/{podId}")
     public PodResponse getPod(@PathVariable String podId) {
         return podService.getPod(podId);
     }
 
-    @Operation(summary = "Create a pod")
+    @Operation(summary = "새 팟을 생성합니다")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public PodResponse createPod(@Valid @RequestBody CreatePodRequest request) {
         return podService.createPod(request);
     }
 
-    @Operation(summary = "Preview pod by invite code")
+    @Operation(summary = "초대 코드로 가입할 팟을 미리 조회합니다")
     @GetMapping("/join-preview")
     public PodResponse previewJoin(@RequestParam String inviteCode) {
         return podService.previewJoin(inviteCode);
     }
 
-    @Operation(summary = "Join a pod")
+    @Operation(summary = "초대 코드로 팟에 가입합니다")
     @PostMapping("/join")
     public PodResponse joinPod(@Valid @RequestBody JoinPodRequest request) {
         return podService.joinPod(request);
     }
 
-    @Operation(summary = "Leave a pod")
+    @Operation(summary = "현재 사용자가 팟에서 나갑니다")
     @DeleteMapping("/{podId}/members/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void leavePod(@PathVariable String podId) {
         podService.leavePod(podId);
     }
 
-    @Operation(summary = "List pod members")
+    @Operation(summary = "팟 멤버 목록을 조회합니다")
     @GetMapping("/{podId}/members")
     public List<PodMemberResponse> getMembers(@PathVariable String podId) {
         return podService.getMembers(podId);
     }
 
-    @Operation(summary = "Invite a member to a pod")
+    @Operation(summary = "핸들로 팟 멤버를 초대합니다")
     @PostMapping("/{podId}/invites")
     @ResponseStatus(HttpStatus.CREATED)
     public InviteResponse inviteMember(

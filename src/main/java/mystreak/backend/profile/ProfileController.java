@@ -21,13 +21,13 @@ public class ProfileController {
         this.profileService = profileService;
     }
 
-    @Operation(summary = "Get my profile")
+    @Operation(summary = "내 프로필을 조회합니다")
     @GetMapping("/me")
     public ProfileResponse getMyProfile() {
         return profileService.getMyProfile();
     }
 
-    @Operation(summary = "Update my profile")
+    @Operation(summary = "내 프로필을 수정합니다")
     @PatchMapping("/me")
     public ProfileResponse updateMyProfile(@Valid @RequestBody UpdateProfileRequest request) {
         return profileService.updateMyProfile(request);

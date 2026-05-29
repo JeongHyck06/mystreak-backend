@@ -26,26 +26,26 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @Operation(summary = "Create a Supabase auth user")
+    @Operation(summary = "이메일과 비밀번호로 회원가입합니다")
     @PostMapping("/signup")
     public SupabaseAuthResponse signUp(@Valid @RequestBody SignUpRequest request) {
         return authService.signUp(request);
     }
 
-    @Operation(summary = "Sign in with email and password")
+    @Operation(summary = "이메일과 비밀번호로 로그인합니다")
     @PostMapping("/login")
     public SupabaseAuthResponse login(@Valid @RequestBody SignInRequest request) {
         return authService.signIn(request);
     }
 
-    @Operation(summary = "Refresh an access token")
+    @Operation(summary = "리프레시 토큰으로 액세스 토큰을 갱신합니다")
     @PostMapping("/refresh")
     public SupabaseAuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return authService.refresh(request);
     }
 
     @Operation(
-            summary = "Sign out the current user",
+            summary = "현재 사용자를 로그아웃합니다",
             security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
     )
     @PostMapping("/logout")
@@ -55,7 +55,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "Get the current Supabase auth user",
+            summary = "현재 Supabase 인증 사용자 정보를 조회합니다",
             security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
     )
     @GetMapping("/me")
