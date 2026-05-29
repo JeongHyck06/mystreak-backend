@@ -8,11 +8,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import mystreak.backend.auth.AuthService;
 import mystreak.backend.common.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,11 +31,16 @@ class ProfileControllerTest {
     @MockitoBean
     private ProfileService profileService;
 
+    @MockitoBean
+    private AuthService authService;
+
     @Test
     void getMyProfileReturnsProfile() throws Exception {
-        when(profileService.getMyProfile()).thenReturn(profile());
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
+        when(profileService.getMyProfile("me")).thenReturn(profile());
 
-        mockMvc.perform(get("/api/profile/me"))
+        mockMvc.perform(get("/api/profile/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("김다혜"))
                 .andExpect(jsonPath("$.handle").value("@doitall"))
@@ -42,10 +49,12 @@ class ProfileControllerTest {
 
     @Test
     void updateMyProfileReturnsUpdatedProfile() throws Exception {
-        when(profileService.updateMyProfile(any(UpdateProfileRequest.class)))
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
+        when(profileService.updateMyProfile(any(String.class), any(UpdateProfileRequest.class)))
                 .thenReturn(new ProfileResponse("me", "김다혜", "@new.handle", "kdh@example.com", "매일 조금씩 더 나아지는 중", 27, 42, 146, 38));
 
         mockMvc.perform(patch("/api/profile/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new UpdateProfileRequest("김다혜", "@new.handle", "매일 조금씩 더 나아지는 중"))))
                 .andExpect(status().isOk())

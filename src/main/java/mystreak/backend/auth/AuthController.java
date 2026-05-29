@@ -14,59 +14,51 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final SupabaseAuthService authService;
+    private final AuthService authService;
 
-    public AuthController(SupabaseAuthService authService) {
+    public AuthController(AuthService authService) {
         this.authService = authService;
     }
 
-    @Operation(summary = "Create a Supabase auth user")
+    @Operation(summary = "이메일과 비밀번호로 회원가입합니다")
     @PostMapping("/signup")
-    public SupabaseAuthResponse signUp(@Valid @RequestBody SignUpRequest request) {
+    public AuthResponse signUp(@Valid @RequestBody SignUpRequest request) {
         return authService.signUp(request);
     }
 
-    @Operation(summary = "Sign in with email and password")
+    @Operation(summary = "이메일과 비밀번호로 로그인합니다")
     @PostMapping("/login")
-    public SupabaseAuthResponse login(@Valid @RequestBody SignInRequest request) {
+    public AuthResponse login(@Valid @RequestBody SignInRequest request) {
         return authService.signIn(request);
     }
 
-    @Operation(summary = "Refresh an access token")
+    @Operation(summary = "리프레시 토큰으로 액세스 토큰을 갱신합니다")
     @PostMapping("/refresh")
-    public SupabaseAuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
+    public AuthResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
         return authService.refresh(request);
     }
 
     @Operation(
-            summary = "Sign out the current user",
+            summary = "현재 사용자를 로그아웃합니다",
             security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
     )
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
-        authService.logout(requireBearerToken(authorization));
+        authService.logout(authorization);
     }
 
     @Operation(
-            summary = "Get the current Supabase auth user",
+            summary = "현재 MySQL 인증 사용자 정보를 조회합니다",
             security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
     )
     @GetMapping("/me")
     public Map<String, Object> me(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
-        return authService.me(requireBearerToken(authorization));
-    }
-
-    private String requireBearerToken(String authorization) {
-        if (authorization == null || !authorization.startsWith("Bearer ") || authorization.length() <= 7) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Bearer token is required");
-        }
-        return authorization;
+        return authService.me(authorization);
     }
 }

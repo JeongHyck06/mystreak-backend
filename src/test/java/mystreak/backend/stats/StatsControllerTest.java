@@ -6,9 +6,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import mystreak.backend.auth.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,12 +23,17 @@ class StatsControllerTest {
     @MockitoBean
     private StatsService statsService;
 
+    @MockitoBean
+    private AuthService authService;
+
     @Test
     void getMyStatsReturnsMonthlyStats() throws Exception {
-        when(statsService.getMyStats(2026, 5))
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
+        when(statsService.getMyStats("me", 2026, 5))
                 .thenReturn(new StatsResponse(27, 42, 6, 7, 146, 3, 87, 26, 5, 2026, List.of(0, 2, 4), "연속 3주 완주 클럽하우스"));
 
         mockMvc.perform(get("/api/stats/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
                         .param("year", "2026")
                         .param("month", "5"))
                 .andExpect(status().isOk())

@@ -7,9 +7,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import mystreak.backend.auth.AuthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,12 +24,17 @@ class NotificationControllerTest {
     @MockitoBean
     private NotificationService notificationService;
 
+    @MockitoBean
+    private AuthService authService;
+
     @Test
     void getNotificationsReturnsNotifications() throws Exception {
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(notificationService.getNotifications("check"))
                 .thenReturn(List.of(notification(false)));
 
         mockMvc.perform(get("/api/notifications")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
                         .param("type", "check"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].title").value("지수님이 내 인증을 체크했어요"))
@@ -36,10 +43,12 @@ class NotificationControllerTest {
 
     @Test
     void markAllReadReturnsReadNotifications() throws Exception {
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(notificationService.markAllRead())
                 .thenReturn(List.of(notification(true)));
 
-        mockMvc.perform(patch("/api/notifications/read-all"))
+        mockMvc.perform(patch("/api/notifications/read-all")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].read").value(true));
     }
