@@ -15,13 +15,16 @@ public class PodService {
         this.jdbcClient = jdbcClient;
     }
 
-    public List<PodResponse> getMyPods() {
+    public List<PodResponse> getMyPods(String profileId) {
         return jdbcClient.sql("""
-                        SELECT id, name, description, member_count, certified_today, max_members,
-                               streak, tag_line, needs_check_in, invite_code
-                        FROM pods
-                        ORDER BY id
+                        SELECT p.id, p.name, p.description, p.member_count, p.certified_today, p.max_members,
+                               p.streak, p.tag_line, p.needs_check_in, p.invite_code
+                        FROM pods p
+                        JOIN pod_members pm ON pm.pod_id = p.id
+                        WHERE pm.profile_id = :profileId
+                        ORDER BY p.id
                         """)
+                .param("profileId", profileId)
                 .query((rs, rowNum) -> toPodResponse(
                         rs.getString("id"),
                         rs.getString("name"),
@@ -62,7 +65,7 @@ public class PodService {
     }
 
     @Transactional
-    public PodResponse createPod(CreatePodRequest request) {
+    public PodResponse createPod(String profileId, CreatePodRequest request) {
         String id = request.name()
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9가-힣]+", "-")
@@ -87,6 +90,13 @@ public class PodService {
                 .update();
 
         insertTags(id, request.tags());
+        jdbcClient.sql("""
+                        INSERT INTO pod_members (pod_id, profile_id, member_role, streak, checked_in_today)
+                        VALUES (:podId, :profileId, '나', 0, FALSE)
+                        """)
+                .param("podId", id)
+                .param("profileId", profileId)
+                .update();
         return getPod(id);
     }
 
@@ -115,14 +125,15 @@ public class PodService {
     }
 
     @Transactional
-    public PodResponse joinPod(JoinPodRequest request) {
+    public PodResponse joinPod(String profileId, JoinPodRequest request) {
         PodResponse pod = previewJoin(request.inviteCode());
         jdbcClient.sql("""
                         INSERT INTO pod_members (pod_id, profile_id, member_role, streak, checked_in_today)
-                        VALUES (:podId, 'me', '나', 0, FALSE)
+                        VALUES (:podId, :profileId, '멤버', 0, FALSE)
                         ON DUPLICATE KEY UPDATE member_role = VALUES(member_role)
                         """)
                 .param("podId", pod.id())
+                .param("profileId", profileId)
                 .update();
         jdbcClient.sql("""
                         UPDATE pods
@@ -135,13 +146,14 @@ public class PodService {
     }
 
     @Transactional
-    public void leavePod(String podId) {
+    public void leavePod(String profileId, String podId) {
         getPod(podId);
         jdbcClient.sql("""
                         DELETE FROM pod_members
-                        WHERE pod_id = :podId AND profile_id = 'me'
+                        WHERE pod_id = :podId AND profile_id = :profileId
                         """)
                 .param("podId", podId)
+                .param("profileId", profileId)
                 .update();
         jdbcClient.sql("""
                         UPDATE pods
