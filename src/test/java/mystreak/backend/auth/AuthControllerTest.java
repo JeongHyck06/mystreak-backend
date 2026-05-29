@@ -32,17 +32,17 @@ class AuthControllerTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @MockitoBean
-    private SupabaseAuthService authService;
+    private AuthService authService;
 
     @Test
-    void loginReturnsSupabaseTokenResponse() throws Exception {
+    void loginReturnsMysqlTokenResponse() throws Exception {
         Map<String, Object> user = Map.of(
                 "id", "user-id",
                 "email", "user@example.com"
         );
 
         when(authService.signIn(any(SignInRequest.class)))
-                .thenReturn(new SupabaseAuthResponse("access-token", "refresh-token", 3600L, 123456789L, "bearer", user));
+                .thenReturn(new AuthResponse("access-token", "refresh-token", 3600L, 123456789L, "bearer", user));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -64,13 +64,17 @@ class AuthControllerTest {
 
     @Test
     void meRequiresBearerToken() throws Exception {
+        doThrow(new AuthException(HttpStatus.UNAUTHORIZED, "Bearer token is required"))
+                .when(authService)
+                .me(null);
+
         mockMvc.perform(get("/api/auth/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Bearer token is required"));
     }
 
     @Test
-    void meReturnsSupabaseUser() throws Exception {
+    void meReturnsMysqlUser() throws Exception {
         Map<String, Object> user = Map.of(
                 "id", "user-id",
                 "email", "user@example.com"
@@ -95,8 +99,8 @@ class AuthControllerTest {
     }
 
     @Test
-    void supabaseAuthErrorsKeepUpstreamStatus() throws Exception {
-        doThrow(new SupabaseAuthException(HttpStatus.UNAUTHORIZED, "Invalid login credentials"))
+    void authErrorsKeepStatus() throws Exception {
+        doThrow(new AuthException(HttpStatus.UNAUTHORIZED, "Invalid login credentials"))
                 .when(authService)
                 .signIn(any(SignInRequest.class));
 

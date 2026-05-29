@@ -1,6 +1,6 @@
 package mystreak.backend.common;
 
-import mystreak.backend.auth.SupabaseAuthException;
+import mystreak.backend.auth.AuthException;
 import mystreak.backend.checkin.CheckInNotFoundException;
 import mystreak.backend.pod.PodNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -14,8 +14,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(SupabaseAuthException.class)
-    ResponseEntity<ApiErrorResponse> handleSupabaseAuthException(SupabaseAuthException exception) {
+    @ExceptionHandler(AuthException.class)
+    ResponseEntity<ApiErrorResponse> handleAuthException(AuthException exception) {
         return ResponseEntity
                 .status(exception.statusCode())
                 .body(new ApiErrorResponse(exception.statusCode().value(), exception.getMessage()));
