@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: backend
+
+server:
+  port: ${SERVER_PORT:8080}
+
+supabase:
+  url: ${SUPABASE_URL}
+  anon-key: ${SUPABASE_ANON_KEY}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
