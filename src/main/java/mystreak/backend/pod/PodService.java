@@ -1,5 +1,7 @@
 package mystreak.backend.pod;
 
+import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -16,15 +18,20 @@ public class PodService {
     }
 
     public List<PodResponse> getMyPods(String profileId) {
+        Timestamp startOfDay = Timestamp.valueOf(LocalDate.now().atStartOfDay());
         return jdbcClient.sql("""
                         SELECT p.id, p.name, p.description, p.member_count, p.certified_today, p.max_members,
-                               p.streak, p.tag_line, p.needs_check_in, p.invite_code
+                               p.streak, p.tag_line, p.invite_code,
+                               (SELECT COUNT(*) FROM check_ins ci
+                                WHERE ci.pod_id = p.id AND ci.author_id = :profileId
+                                  AND ci.created_at >= :startOfDay) AS my_checks_today
                         FROM pods p
                         JOIN pod_members pm ON pm.pod_id = p.id
                         WHERE pm.profile_id = :profileId
                         ORDER BY p.id
                         """)
                 .param("profileId", profileId)
+                .param("startOfDay", startOfDay)
                 .query((rs, rowNum) -> toPodResponse(
                         rs.getString("id"),
                         rs.getString("name"),
@@ -34,7 +41,7 @@ public class PodService {
                         rs.getInt("max_members"),
                         rs.getInt("streak"),
                         rs.getString("tag_line"),
-                        rs.getBoolean("needs_check_in"),
+                        rs.getInt("my_checks_today") == 0,
                         rs.getString("invite_code")
                 ))
                 .list();
