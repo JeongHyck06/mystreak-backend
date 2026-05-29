@@ -15,7 +15,7 @@ public class StatsService {
         this.jdbcClient = jdbcClient;
     }
 
-    public StatsResponse getMyStats(Integer year, Integer month) {
+    public StatsResponse getMyStats(String profileId, Integer year, Integer month) {
         YearMonth now = YearMonth.now();
         YearMonth selectedMonth = YearMonth.of(
                 year == null ? now.getYear() : year,
@@ -31,7 +31,7 @@ public class StatsService {
                           AND stat_year = :year
                           AND stat_month = :month
                         """)
-                .param("profileId", "me")
+                .param("profileId", profileId)
                 .param("year", selectedMonth.getYear())
                 .param("month", selectedMonth.getMonthValue())
                 .query((rs, rowNum) -> new StatsResponse(
