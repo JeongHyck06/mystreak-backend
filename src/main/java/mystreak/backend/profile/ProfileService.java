@@ -7,17 +7,7 @@ import org.springframework.stereotype.Service;
 public class ProfileService {
 
     private final AtomicReference<ProfileResponse> profile = new AtomicReference<>(
-            new ProfileResponse(
-                    "me",
-                    "김다혜",
-                    "@doitall",
-                    "kdh@example.com",
-                    "오이, 당근 입에 안 댑니다",
-                    27,
-                    42,
-                    146,
-                    38
-            )
+            new ProfileResponse("me", "", "", "", "", 0, 0, 0, 0)
     );
 
     public ProfileResponse getMyProfile() {

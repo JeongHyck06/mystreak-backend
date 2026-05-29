@@ -11,11 +11,6 @@ public class CheckInService {
 
     private final Map<String, CheckInResponse> checkIns = new LinkedHashMap<>();
 
-    public CheckInService() {
-        put(new CheckInResponse("feed-1", "running", "일정형", "오늘 아침 5:24 · 12일째", "잠 안 와서 코딩함", null, 18, 3, false));
-        put(new CheckInResponse("feed-2", "running", "이서정", "어제 밤 · 11일째", "야 또 왔네", null, 11, 1, false));
-    }
-
     public List<CheckInResponse> getPodFeed(String podId) {
         return checkIns.values()
                 .stream()
@@ -28,8 +23,8 @@ public class CheckInService {
         CheckInResponse checkIn = new CheckInResponse(
                 id,
                 podId,
-                "김다혜",
-                "방금 전 · 27일째",
+                "me",
+                "방금 전",
                 request.text(),
                 request.mediaUrl(),
                 0,

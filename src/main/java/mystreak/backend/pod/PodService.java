@@ -12,10 +12,6 @@ public class PodService {
 
     private final Map<String, PodResponse> pods = new LinkedHashMap<>();
 
-    public PodService() {
-        seedPods();
-    }
-
     public List<PodResponse> getMyPods() {
         return new ArrayList<>(pods.values());
     }
@@ -86,12 +82,8 @@ public class PodService {
     }
 
     public List<PodMemberResponse> getMembers(String podId) {
-        PodResponse pod = getPod(podId);
-        return List.of(
-                new PodMemberResponse("me", "김다혜", "@doitall", pod.streak(), true, "나"),
-                new PodMemberResponse("member-1", "이서정", "@seojung.lee", pod.streak() + 1, false, "멤버"),
-                new PodMemberResponse("member-2", "박지수", "@jisu.park", pod.streak() + 2, false, "멤버")
-        );
+        getPod(podId);
+        return List.of();
     }
 
     public InviteResponse inviteMember(String podId, InviteMemberRequest request) {
@@ -102,12 +94,6 @@ public class PodService {
                 "sent",
                 "mystreak.app/pod/" + pod.inviteCode()
         );
-    }
-
-    private void seedPods() {
-        put(new PodResponse("running", "새벽 5시 러닝 크루", "아침 5시, 함께 달립니다. 날씨에 구애받지 말고 우선 나가세요.", 248, 6, 8, 12, "운동 · 사진 인증", List.of("#러닝", "#새벽기상", "#운동"), false, "ABC123"));
-        put(new PodResponse("english", "매일매일 영어 30분", "하루 30분 영어 루틴을 인증해요.", 56, 5, 7, 8, "학습 · 타이머 인증", List.of("#영어", "#공부"), true, "ENG030"));
-        put(new PodResponse("reading", "책가족 독서 모임", "매일 읽은 페이지를 공유하고 서로 응원해요.", 72, 8, 9, 34, "독서 · 한 줄 기록", List.of("#독서", "#기록"), false, "BOOK01"));
     }
 
     private void put(PodResponse pod) {
