@@ -32,9 +32,10 @@ public class StreakService {
         List<LocalDate> dates = checkInDates(profileId, null);
         LocalDate today = LocalDate.now(ZONE);
         Set<LocalDate> daySet = new HashSet<>(dates);
+        List<LocalDate> distinctDays = daySet.stream().sorted().toList();
 
         int currentStreak = currentStreak(daySet, today);
-        int bestStreak = bestStreak(dates);
+        int bestStreak = bestStreak(distinctDays);
         int totalChecks = dates.size();
 
         jdbcClient.sql("""
@@ -128,7 +129,7 @@ public class StreakService {
         }
 
         LocalDate weekStart = today.minusDays(6);
-        int weeklyChecks = (int) daySet.stream()
+        int weeklyChecks = (int) dates.stream()
                 .filter(date -> !date.isBefore(weekStart) && !date.isAfter(today))
                 .count();
 
@@ -188,7 +189,6 @@ public class StreakService {
                 .stream()
                 .filter(timestamp -> timestamp != null)
                 .map(timestamp -> timestamp.toInstant().atZone(ZONE).toLocalDate())
-                .distinct()
                 .sorted()
                 .collect(Collectors.toList());
     }
