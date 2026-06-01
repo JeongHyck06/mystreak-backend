@@ -176,10 +176,16 @@ public class StreakService {
                 .update();
     }
 
+    /**
+     * 인증으로 인정되는 글의 작성일 목록을 반환한다.
+     * "인증"은 본인이 글을 올리는 것이 아니라 다른 멤버가 체크(check_in_checks)해줘야 성립하므로,
+     * 다른 사람의 체크가 1개 이상 달린 글만 집계한다.
+     */
     private List<LocalDate> checkInDates(String profileId, String podId) {
+        String verified = " AND EXISTS (SELECT 1 FROM check_in_checks c WHERE c.check_in_id = ci.id)";
         String sql = podId == null
-                ? "SELECT created_at FROM check_ins WHERE author_id = :profileId"
-                : "SELECT created_at FROM check_ins WHERE author_id = :profileId AND pod_id = :podId";
+                ? "SELECT ci.created_at FROM check_ins ci WHERE ci.author_id = :profileId" + verified
+                : "SELECT ci.created_at FROM check_ins ci WHERE ci.author_id = :profileId AND ci.pod_id = :podId" + verified;
         var spec = jdbcClient.sql(sql).param("profileId", profileId);
         if (podId != null) {
             spec = spec.param("podId", podId);

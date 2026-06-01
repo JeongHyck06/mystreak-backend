@@ -157,6 +157,9 @@ public class CheckInService {
                     .param("me", profileId)
                     .update();
         }
+        // 인증 성립 여부(남의 체크 1개 이상)가 바뀌었으므로 글 작성자의 스트릭/통계와 팟을 재계산한다.
+        streakService.recalculateProfile(checkIn.authorId());
+        streakService.recalculatePod(checkIn.podId());
         return getCheckIn(checkInId, profileId);
     }
 

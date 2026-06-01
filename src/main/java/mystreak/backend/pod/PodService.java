@@ -26,7 +26,9 @@ public class PodService {
     public List<PodResponse> getMyPods(String profileId) {
         Timestamp startOfDay = Timestamp.valueOf(LocalDate.now().atStartOfDay());
         return jdbcClient.sql("""
-                        SELECT p.id, p.name, p.description, p.member_count, p.certified_today, p.max_members,
+                        SELECT p.id, p.name, p.description,
+                               (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = p.id) AS member_count,
+                               p.certified_today, p.max_members,
                                p.streak, p.tag_line, p.invite_code,
                                (SELECT COUNT(*) FROM check_ins ci
                                 WHERE ci.pod_id = p.id AND ci.author_id = :profileId
@@ -55,7 +57,9 @@ public class PodService {
 
     public PodResponse getPod(String podId) {
         return jdbcClient.sql("""
-                        SELECT id, name, description, member_count, certified_today, max_members,
+                        SELECT id, name, description,
+                               (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = pods.id) AS member_count,
+                               certified_today, max_members,
                                streak, tag_line, needs_check_in, invite_code
                         FROM pods
                         WHERE id = :id
@@ -131,7 +135,9 @@ public class PodService {
 
     public PodResponse previewJoin(String inviteCode) {
         return jdbcClient.sql("""
-                        SELECT id, name, description, member_count, certified_today, max_members,
+                        SELECT id, name, description,
+                               (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = pods.id) AS member_count,
+                               certified_today, max_members,
                                streak, tag_line, needs_check_in, invite_code
                         FROM pods
                         WHERE UPPER(invite_code) = UPPER(:inviteCode)
