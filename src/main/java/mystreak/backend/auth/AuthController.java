@@ -3,15 +3,21 @@ package mystreak.backend.auth;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import mystreak.backend.config.OpenApiConfig;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,9 +26,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final String kakaoRedirectUri;
+    private final String defaultAppReturnUrl;
 
-    public AuthController(AuthService authService) {
+    public AuthController(
+            AuthService authService,
+            @Value("${kakao.redirect-uri:https://mystreak.duckdns.org/api/auth/kakao/callback}") String kakaoRedirectUri,
+            @Value("${kakao.app-return-url:mystreak://oauth}") String defaultAppReturnUrl
+    ) {
         this.authService = authService;
+        this.kakaoRedirectUri = kakaoRedirectUri;
+        this.defaultAppReturnUrl = defaultAppReturnUrl;
     }
 
     @Operation(summary = "이메일과 비밀번호로 회원가입합니다")
@@ -35,6 +49,46 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody SignInRequest request) {
         return authService.signIn(request);
+    }
+
+    @Operation(summary = "카카오 인가 코드로 로그인/회원가입합니다")
+    @PostMapping("/kakao")
+    public AuthResponse kakaoLogin(@Valid @RequestBody KakaoLoginRequest request) {
+        return authService.kakaoLogin(request.code(), request.redirectUri());
+    }
+
+    /**
+     * 카카오 OAuth 리다이렉트 콜백. 카카오는 http(s) redirect_uri 만 허용하므로 백엔드가 콜백을 받아
+     * 코드 -> 토큰 교환 후 세션을 발급하고, state 로 전달받은 앱 딥링크로 토큰을 실어 다시 리다이렉트한다.
+     */
+    @Operation(summary = "카카오 OAuth 콜백 (앱 딥링크로 리다이렉트)")
+    @GetMapping("/kakao/callback")
+    public ResponseEntity<Void> kakaoCallback(
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String error,
+            @RequestParam(name = "error_description", required = false) String errorDescription
+    ) {
+        String returnUrl = (state != null && !state.isBlank()) ? state : defaultAppReturnUrl;
+
+        if (error != null && !error.isBlank()) {
+            return redirect(appendQuery(returnUrl, "error", error));
+        }
+        if (code == null || code.isBlank()) {
+            return redirect(appendQuery(returnUrl, "error", "missing_code"));
+        }
+
+        try {
+            AuthResponse auth = authService.kakaoLogin(code, kakaoRedirectUri);
+            String target = returnUrl
+                    + (returnUrl.contains("?") ? "&" : "?")
+                    + "access_token=" + enc(auth.accessToken())
+                    + "&refresh_token=" + enc(auth.refreshToken())
+                    + "&expires_at=" + (auth.expiresAt() != null ? auth.expiresAt() : 0L);
+            return redirect(target);
+        } catch (Exception e) {
+            return redirect(appendQuery(returnUrl, "error", "login_failed"));
+        }
     }
 
     @Operation(summary = "리프레시 토큰으로 액세스 토큰을 갱신합니다")
@@ -60,5 +114,17 @@ public class AuthController {
     @GetMapping("/me")
     public Map<String, Object> me(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         return authService.me(authorization);
+    }
+
+    private static ResponseEntity<Void> redirect(String url) {
+        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(url)).build();
+    }
+
+    private static String appendQuery(String url, String key, String value) {
+        return url + (url.contains("?") ? "&" : "?") + key + "=" + enc(value);
+    }
+
+    private static String enc(String value) {
+        return value == null ? "" : URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }
