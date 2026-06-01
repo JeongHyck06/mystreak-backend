@@ -18,12 +18,16 @@ public class AuthService {
     private static final long ACCESS_TOKEN_TTL_SECONDS = 60L * 60L * 24L * 7L;
     private static final long REFRESH_TOKEN_TTL_SECONDS = 60L * 60L * 24L * 30L;
 
+    private static final String HANDLE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+
     private final JdbcClient jdbcClient;
+    private final KakaoUserClient kakaoUserClient;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public AuthService(JdbcClient jdbcClient) {
+    public AuthService(JdbcClient jdbcClient, KakaoUserClient kakaoUserClient) {
         this.jdbcClient = jdbcClient;
+        this.kakaoUserClient = kakaoUserClient;
     }
 
     @PostConstruct
@@ -48,6 +52,50 @@ public class AuthService {
                         )
                         """)
                 .update();
+        migrateAuthUsersForSocialLogin();
+    }
+
+    /**
+     * 소셜 로그인 지원을 위한 auth_users 스키마 보정. (MySQL 8은 ADD COLUMN IF NOT EXISTS 미지원이라
+     * information_schema 로 존재 여부를 확인한 뒤 ALTER 한다.)
+     */
+    private void migrateAuthUsersForSocialLogin() {
+        if (!columnExists("auth_users", "provider")) {
+            jdbcClient.sql("ALTER TABLE auth_users ADD COLUMN provider VARCHAR(20) NOT NULL DEFAULT 'local'").update();
+        }
+        if (!columnExists("auth_users", "provider_id")) {
+            jdbcClient.sql("ALTER TABLE auth_users ADD COLUMN provider_id VARCHAR(128)").update();
+        }
+        // 소셜 사용자는 비밀번호/이메일이 없을 수 있으므로 NULL 허용으로 완화한다.
+        jdbcClient.sql("ALTER TABLE auth_users MODIFY COLUMN password_hash VARCHAR(255) NULL").update();
+        jdbcClient.sql("ALTER TABLE auth_users MODIFY COLUMN email VARCHAR(255) NULL").update();
+        if (!indexExists("auth_users", "uk_auth_users_provider")) {
+            jdbcClient.sql("ALTER TABLE auth_users ADD UNIQUE KEY uk_auth_users_provider (provider, provider_id)").update();
+        }
+    }
+
+    private boolean columnExists(String table, String column) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM information_schema.columns
+                        WHERE table_schema = DATABASE() AND table_name = :table AND column_name = :column
+                        """)
+                .param("table", table)
+                .param("column", column)
+                .query(Integer.class)
+                .single();
+        return count != null && count > 0;
+    }
+
+    private boolean indexExists(String table, String index) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM information_schema.statistics
+                        WHERE table_schema = DATABASE() AND table_name = :table AND index_name = :index
+                        """)
+                .param("table", table)
+                .param("index", index)
+                .query(Integer.class)
+                .single();
+        return count != null && count > 0;
     }
 
     @Transactional
@@ -83,6 +131,38 @@ public class AuthService {
         }
 
         return createSession(user.id(), user.email());
+    }
+
+    @Transactional
+    public AuthResponse kakaoLogin(String code, String redirectUri) {
+        String kakaoAccessToken = kakaoUserClient.exchangeCodeForToken(code, redirectUri);
+        KakaoUserClient.KakaoUser kakaoUser = kakaoUserClient.fetchUser(kakaoAccessToken);
+
+        String userId = findUserIdByProvider("kakao", kakaoUser.id());
+        String email;
+        if (userId == null) {
+            userId = UUID.randomUUID().toString();
+            email = kakaoUser.email();
+            String name = (kakaoUser.nickname() != null && !kakaoUser.nickname().isBlank())
+                    ? kakaoUser.nickname().trim()
+                    : "카카오 사용자";
+            String handle = generateUniqueHandle(kakaoUser.nickname());
+
+            jdbcClient.sql("""
+                            INSERT INTO auth_users (id, email, password_hash, provider, provider_id)
+                            VALUES (:id, :email, NULL, 'kakao', :providerId)
+                            """)
+                    .param("id", userId)
+                    .param("email", email)
+                    .param("providerId", kakaoUser.id())
+                    .update();
+
+            createProfile(userId, email != null ? email : "", name, handle);
+        } else {
+            email = findEmailById(userId);
+        }
+
+        return createSession(userId, email);
     }
 
     @Transactional
@@ -168,12 +248,58 @@ public class AuthService {
                 .orElse(null);
     }
 
+    private String findUserIdByProvider(String provider, String providerId) {
+        return jdbcClient.sql("""
+                        SELECT id FROM auth_users
+                        WHERE provider = :provider AND provider_id = :providerId
+                        """)
+                .param("provider", provider)
+                .param("providerId", providerId)
+                .query(String.class)
+                .optional()
+                .orElse(null);
+    }
+
     private String findEmailById(String userId) {
         return jdbcClient.sql("SELECT email FROM auth_users WHERE id = :id")
                 .param("id", userId)
                 .query(String.class)
                 .optional()
                 .orElse("");
+    }
+
+    private String generateUniqueHandle(String nickname) {
+        String base = sanitizeHandleBase(nickname);
+        String candidate = "@" + base;
+        if (!isHandleTaken(candidate)) {
+            return candidate;
+        }
+        for (int i = 0; i < 20; i++) {
+            candidate = "@" + base + randomHandleSuffix(4);
+            if (!isHandleTaken(candidate)) {
+                return candidate;
+            }
+        }
+        return "@" + base + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private String sanitizeHandleBase(String nickname) {
+        String ascii = nickname == null ? "" : nickname.replaceAll("[^a-zA-Z0-9._]", "");
+        if (ascii.length() < 3) {
+            ascii = "kakao" + randomHandleSuffix(4);
+        }
+        if (ascii.length() > 20) {
+            ascii = ascii.substring(0, 20);
+        }
+        return ascii;
+    }
+
+    private String randomHandleSuffix(int length) {
+        StringBuilder sb = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            sb.append(HANDLE_CHARS.charAt(secureRandom.nextInt(HANDLE_CHARS.length())));
+        }
+        return sb.toString();
     }
 
     private void createProfile(String userId, String email, String name, String handle) {
@@ -223,7 +349,7 @@ public class AuthService {
     }
 
     private Map<String, Object> userMap(String id, String email) {
-        return Map.of("id", id, "email", email);
+        return Map.of("id", id, "email", email != null ? email : "");
     }
 
     private record AuthUser(String id, String email, String passwordHash) {
