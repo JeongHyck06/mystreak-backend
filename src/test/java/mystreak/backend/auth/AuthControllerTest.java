@@ -57,7 +57,7 @@ class AuthControllerTest {
     void signupRejectsInvalidEmail() throws Exception {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new SignUpRequest("not-an-email", "password1"))))
+                        .content(objectMapper.writeValueAsString(new SignUpRequest("not-an-email", "password1", "다혜", "@doitall"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
     }

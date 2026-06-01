@@ -73,6 +73,34 @@ CREATE TABLE IF NOT EXISTS check_ins (
     CONSTRAINT fk_check_ins_author FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS check_in_likes (
+    check_in_id VARCHAR(120) NOT NULL,
+    profile_id VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (check_in_id, profile_id),
+    CONSTRAINT fk_check_in_likes_check_in FOREIGN KEY (check_in_id) REFERENCES check_ins(id) ON DELETE CASCADE,
+    CONSTRAINT fk_check_in_likes_profile FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS check_in_checks (
+    check_in_id VARCHAR(120) NOT NULL,
+    profile_id VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (check_in_id, profile_id),
+    CONSTRAINT fk_check_in_checks_check_in FOREIGN KEY (check_in_id) REFERENCES check_ins(id) ON DELETE CASCADE,
+    CONSTRAINT fk_check_in_checks_profile FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS check_in_comments (
+    id VARCHAR(120) PRIMARY KEY,
+    check_in_id VARCHAR(120) NOT NULL,
+    author_id VARCHAR(64) NOT NULL,
+    text VARCHAR(300) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_check_in_comments_check_in FOREIGN KEY (check_in_id) REFERENCES check_ins(id) ON DELETE CASCADE,
+    CONSTRAINT fk_check_in_comments_author FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS user_stats (
     profile_id VARCHAR(64) NOT NULL,
     stat_month INT NOT NULL,

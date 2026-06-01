@@ -1,7 +1,11 @@
 package mystreak.backend.pod;
 
+    import java.security.SecureRandom;
+import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,22 +13,33 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PodService {
 
+    private static final String INVITE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final int MAX_ID_ATTEMPTS = 50;
+
     private final JdbcClient jdbcClient;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public PodService(JdbcClient jdbcClient) {
         this.jdbcClient = jdbcClient;
     }
 
     public List<PodResponse> getMyPods(String profileId) {
+        Timestamp startOfDay = Timestamp.valueOf(LocalDate.now().atStartOfDay());
         return jdbcClient.sql("""
-                        SELECT p.id, p.name, p.description, p.member_count, p.certified_today, p.max_members,
-                               p.streak, p.tag_line, p.needs_check_in, p.invite_code
+                        SELECT p.id, p.name, p.description,
+                               (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = p.id) AS member_count,
+                               p.certified_today, p.max_members,
+                               p.streak, p.tag_line, p.invite_code,
+                               (SELECT COUNT(*) FROM check_ins ci
+                                WHERE ci.pod_id = p.id AND ci.author_id = :profileId
+                                  AND ci.created_at >= :startOfDay) AS my_checks_today
                         FROM pods p
                         JOIN pod_members pm ON pm.pod_id = p.id
                         WHERE pm.profile_id = :profileId
                         ORDER BY p.id
                         """)
                 .param("profileId", profileId)
+                .param("startOfDay", startOfDay)
                 .query((rs, rowNum) -> toPodResponse(
                         rs.getString("id"),
                         rs.getString("name"),
@@ -34,7 +49,7 @@ public class PodService {
                         rs.getInt("max_members"),
                         rs.getInt("streak"),
                         rs.getString("tag_line"),
-                        rs.getBoolean("needs_check_in"),
+                        rs.getInt("my_checks_today") == 0,
                         rs.getString("invite_code")
                 ))
                 .list();
@@ -42,7 +57,9 @@ public class PodService {
 
     public PodResponse getPod(String podId) {
         return jdbcClient.sql("""
-                        SELECT id, name, description, member_count, certified_today, max_members,
+                        SELECT id, name, description,
+                               (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = pods.id) AS member_count,
+                               certified_today, max_members,
                                streak, tag_line, needs_check_in, invite_code
                         FROM pods
                         WHERE id = :id
@@ -66,28 +83,8 @@ public class PodService {
 
     @Transactional
     public PodResponse createPod(String profileId, CreatePodRequest request) {
-        String id = request.name()
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9가-힣]+", "-")
-                .replaceAll("(^-|-$)", "");
-        if (id.isBlank()) {
-            id = "pod-" + System.currentTimeMillis();
-        }
-        if (existsById(id)) {
-            id = id + "-" + System.currentTimeMillis();
-        }
-
-        jdbcClient.sql("""
-                        INSERT INTO pods (id, name, description, member_count, certified_today, max_members, streak, tag_line, needs_check_in, invite_code)
-                        VALUES (:id, :name, :description, 1, 0, :maxMembers, 0, :tagLine, TRUE, :inviteCode)
-                        """)
-                .param("id", id)
-                .param("name", request.name())
-                .param("description", request.description())
-                .param("maxMembers", request.maxMembers())
-                .param("tagLine", request.tagLine())
-                .param("inviteCode", inviteCodeFor(id))
-                .update();
+        String slug = toSlug(request.name());
+        String id = insertPod(slug, request);
 
         insertTags(id, request.tags());
         jdbcClient.sql("""
@@ -100,9 +97,47 @@ public class PodService {
         return getPod(id);
     }
 
+    private String toSlug(String name) {
+        String slug = name
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9가-힣]+", "-")
+                .replaceAll("(^-|-$)", "");
+        return slug.isBlank() ? "pod" : slug;
+    }
+
+    /**
+     * id(PK)와 invite_code(UNIQUE) 충돌을 사전 조회 없이 처리한다.
+     * 동시 요청으로 같은 slug가 들어와도 INSERT 실패 시 고유 suffix를 붙여 재시도하므로
+     * check-then-insert 경쟁 조건이 발생하지 않는다.
+     */
+    private String insertPod(String slug, CreatePodRequest request) {
+        for (int attempt = 0; attempt < MAX_ID_ATTEMPTS; attempt++) {
+            String id = attempt == 0 ? slug : slug + "-" + randomSuffix(6);
+            try {
+                jdbcClient.sql("""
+                                INSERT INTO pods (id, name, description, member_count, certified_today, max_members, streak, tag_line, needs_check_in, invite_code)
+                                VALUES (:id, :name, :description, 1, 0, :maxMembers, 0, :tagLine, TRUE, :inviteCode)
+                                """)
+                        .param("id", id)
+                        .param("name", request.name())
+                        .param("description", request.description())
+                        .param("maxMembers", request.maxMembers())
+                        .param("tagLine", request.tagLine())
+                        .param("inviteCode", generateInviteCode(id))
+                        .update();
+                return id;
+            } catch (DuplicateKeyException ignored) {
+                // id 또는 invite_code 충돌: 새 suffix로 재시도
+            }
+        }
+        throw new IllegalStateException("팟 ID 생성에 실패했습니다: " + slug);
+    }
+
     public PodResponse previewJoin(String inviteCode) {
         return jdbcClient.sql("""
-                        SELECT id, name, description, member_count, certified_today, max_members,
+                        SELECT id, name, description,
+                               (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = pods.id) AS member_count,
+                               certified_today, max_members,
                                streak, tag_line, needs_check_in, invite_code
                         FROM pods
                         WHERE UPPER(invite_code) = UPPER(:inviteCode)
@@ -155,6 +190,24 @@ public class PodService {
                 .param("podId", podId)
                 .param("profileId", profileId)
                 .update();
+
+        int remainingMembers = jdbcClient.sql("""
+                        SELECT COUNT(*) FROM pod_members
+                        WHERE pod_id = :podId
+                        """)
+                .param("podId", podId)
+                .query(Integer.class)
+                .single();
+
+        if (remainingMembers == 0) {
+            // 마지막 멤버가 나가면 팟을 삭제한다. pod_tags, pod_members, check_ins 등은
+            // ON DELETE CASCADE로 함께 정리된다.
+            jdbcClient.sql("DELETE FROM pods WHERE id = :podId")
+                    .param("podId", podId)
+                    .update();
+            return;
+        }
+
         jdbcClient.sql("""
                         UPDATE pods
                         SET member_count = GREATEST(member_count - 1, 0)
@@ -247,15 +300,36 @@ public class PodService {
         }
     }
 
-    private boolean existsById(String podId) {
-        Integer count = jdbcClient.sql("SELECT COUNT(*) FROM pods WHERE id = :id")
-                .param("id", podId)
+    private String generateInviteCode(String podId) {
+        String base = podId.replaceAll("[^a-zA-Z0-9]", "").toUpperCase(Locale.ROOT);
+        if (base.isBlank()) {
+            base = "POD";
+        }
+        if (base.length() > 8) {
+            base = base.substring(0, 8);
+        }
+        for (int attempt = 0; attempt < 50; attempt++) {
+            String code = base + randomSuffix(4);
+            if (!inviteCodeExists(code)) {
+                return code;
+            }
+        }
+        return base + System.currentTimeMillis();
+    }
+
+    private String randomSuffix(int length) {
+        StringBuilder builder = new StringBuilder(length);
+        for (int i = 0; i < length; i++) {
+            builder.append(INVITE_CODE_ALPHABET.charAt(secureRandom.nextInt(INVITE_CODE_ALPHABET.length())));
+        }
+        return builder.toString();
+    }
+
+    private boolean inviteCodeExists(String inviteCode) {
+        Integer count = jdbcClient.sql("SELECT COUNT(*) FROM pods WHERE UPPER(invite_code) = UPPER(:inviteCode)")
+                .param("inviteCode", inviteCode)
                 .query(Integer.class)
                 .single();
         return count != null && count > 0;
-    }
-
-    private String inviteCodeFor(String podId) {
-        return podId.replaceAll("[^a-zA-Z0-9]", "").toUpperCase(Locale.ROOT) + "01";
     }
 }

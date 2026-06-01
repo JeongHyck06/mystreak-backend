@@ -56,6 +56,11 @@ public class AuthService {
             throw new AuthException(HttpStatus.CONFLICT, "Email is already registered");
         }
 
+        String handle = normalizeHandle(request.handle());
+        if (isHandleTaken(handle)) {
+            throw new AuthException(HttpStatus.CONFLICT, "이미 사용 중인 아이디예요");
+        }
+
         String userId = UUID.randomUUID().toString();
         jdbcClient.sql("""
                         INSERT INTO auth_users (id, email, password_hash)
@@ -66,7 +71,7 @@ public class AuthService {
                 .param("passwordHash", passwordEncoder.encode(request.password()))
                 .update();
 
-        createProfileIfMissing(userId, request.email());
+        createProfile(userId, request.email(), request.name().trim(), handle);
         return createSession(userId, request.email());
     }
 
@@ -171,7 +176,7 @@ public class AuthService {
                 .orElse("");
     }
 
-    private void createProfileIfMissing(String userId, String email) {
+    private void createProfile(String userId, String email, String name, String handle) {
         Integer count = jdbcClient.sql("SELECT COUNT(*) FROM profiles WHERE id = :id")
                 .param("id", userId)
                 .query(Integer.class)
@@ -180,21 +185,28 @@ public class AuthService {
             return;
         }
 
-        String localPart = email.substring(0, email.indexOf("@"));
-        String handle = "@" + localPart.replaceAll("[^a-zA-Z0-9._]", "").toLowerCase();
-        if (handle.length() < 4) {
-            handle = "@user" + userId.substring(0, 6);
-        }
-
         jdbcClient.sql("""
                         INSERT INTO profiles (id, name, handle, email, bio)
                         VALUES (:id, :name, :handle, :email, '')
                         """)
                 .param("id", userId)
-                .param("name", localPart)
+                .param("name", name)
                 .param("handle", handle)
                 .param("email", email)
                 .update();
+    }
+
+    private String normalizeHandle(String handle) {
+        String trimmed = handle.trim();
+        return trimmed.startsWith("@") ? trimmed : "@" + trimmed;
+    }
+
+    private boolean isHandleTaken(String handle) {
+        Integer count = jdbcClient.sql("SELECT COUNT(*) FROM profiles WHERE LOWER(handle) = LOWER(:handle)")
+                .param("handle", handle)
+                .query(Integer.class)
+                .single();
+        return count != null && count > 0;
     }
 
     private String requireAccessToken(String authorization) {
