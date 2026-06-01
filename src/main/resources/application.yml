@@ -2,7 +2,7 @@ spring:
   application:
     name: backend
   profiles:
-    active: local # 기본 프로필
+    active: ${ACTIVE_PROFILE} # 기본 프로필
 
   datasource:
     url: ${MYSQL_URL}
