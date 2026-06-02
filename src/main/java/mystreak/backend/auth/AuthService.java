@@ -1,11 +1,15 @@
 package mystreak.backend.auth;
 
 import jakarta.annotation.PostConstruct;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -21,12 +25,14 @@ public class AuthService {
     private static final String HANDLE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 
     private final JdbcClient jdbcClient;
+    private final DataSource dataSource;
     private final KakaoUserClient kakaoUserClient;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public AuthService(JdbcClient jdbcClient, KakaoUserClient kakaoUserClient) {
+    public AuthService(JdbcClient jdbcClient, DataSource dataSource, KakaoUserClient kakaoUserClient) {
         this.jdbcClient = jdbcClient;
+        this.dataSource = dataSource;
         this.kakaoUserClient = kakaoUserClient;
     }
 
@@ -87,15 +93,18 @@ public class AuthService {
     }
 
     private boolean indexExists(String table, String index) {
-        Integer count = jdbcClient.sql("""
-                        SELECT COUNT(*) FROM information_schema.statistics
-                        WHERE table_schema = DATABASE() AND table_name = :table AND index_name = :index
-                        """)
-                .param("table", table)
-                .param("index", index)
-                .query(Integer.class)
-                .single();
-        return count != null && count > 0;
+        try (Connection connection = dataSource.getConnection();
+             ResultSet indexes = connection.getMetaData().getIndexInfo(null, null, table, false, false)) {
+            while (indexes.next()) {
+                String indexName = indexes.getString("INDEX_NAME");
+                if (index.equalsIgnoreCase(indexName)) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (SQLException e) {
+            throw new AuthException(HttpStatus.INTERNAL_SERVER_ERROR, "인증 스키마 확인에 실패했어요");
+        }
     }
 
     @Transactional
