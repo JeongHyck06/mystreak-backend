@@ -30,3 +30,10 @@ server:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+app:
+  media:
+    s3:
+      bucket: ${S3_MEDIA_BUCKET:}
+      region: ${AWS_REGION:ap-northeast-2}
+      upload-url-expires-minutes: ${S3_UPLOAD_URL_EXPIRES_MINUTES:10}
