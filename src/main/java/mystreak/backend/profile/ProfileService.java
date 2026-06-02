@@ -1,5 +1,6 @@
 package mystreak.backend.profile;
 
+import mystreak.backend.streak.StreakService;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 
@@ -7,12 +8,15 @@ import org.springframework.stereotype.Service;
 public class ProfileService {
 
     private final JdbcClient jdbcClient;
+    private final StreakService streakService;
 
-    public ProfileService(JdbcClient jdbcClient) {
+    public ProfileService(JdbcClient jdbcClient, StreakService streakService) {
         this.jdbcClient = jdbcClient;
+        this.streakService = streakService;
     }
 
     public ProfileResponse getMyProfile(String profileId) {
+        streakService.recalculateProfile(profileId);
         return jdbcClient.sql("""
                         SELECT id, name, handle, email, bio, current_streak, best_streak, total_checks, trophies
                         FROM profiles
