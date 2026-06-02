@@ -34,6 +34,9 @@ class AuthControllerTest {
     @MockitoBean
     private AuthService authService;
 
+    @MockitoBean
+    private EmailVerificationService emailVerificationService;
+
     @Test
     void loginReturnsMysqlTokenResponse() throws Exception {
         Map<String, Object> user = Map.of(
