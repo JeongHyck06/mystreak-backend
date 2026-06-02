@@ -25,6 +25,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.security:spring-security-crypto'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+    implementation platform('software.amazon.awssdk:bom:2.44.14')
+    implementation 'software.amazon.awssdk:s3'
     runtimeOnly 'com.mysql:mysql-connector-j'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
