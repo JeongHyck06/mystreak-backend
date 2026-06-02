@@ -9,6 +9,17 @@ spring:
     username: ${MYSQL_USERNAME}
     password: ${MYSQL_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+  mail:
+    host: ${GOOGLE_MAIL_HOST:smtp.gmail.com}
+    port: ${GOOGLE_MAIL_PORT:587}
+    username: ${GOOGLE_MAIL_USERNAME:}
+    password: ${GOOGLE_MAIL_APP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   sql:
     init:
       mode: ${SPRING_SQL_INIT_MODE:never}

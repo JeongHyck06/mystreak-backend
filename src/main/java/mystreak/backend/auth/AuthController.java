@@ -26,15 +26,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailVerificationService emailVerificationService;
     private final String kakaoRedirectUri;
     private final String defaultAppReturnUrl;
 
     public AuthController(
             AuthService authService,
+            EmailVerificationService emailVerificationService,
             @Value("${kakao.redirect-uri:https://mystreak.duckdns.org/api/auth/kakao/callback}") String kakaoRedirectUri,
             @Value("${kakao.app-return-url:mystreak://oauth}") String defaultAppReturnUrl
     ) {
         this.authService = authService;
+        this.emailVerificationService = emailVerificationService;
         this.kakaoRedirectUri = kakaoRedirectUri;
         this.defaultAppReturnUrl = defaultAppReturnUrl;
     }
@@ -55,6 +58,18 @@ public class AuthController {
     @PostMapping("/kakao")
     public AuthResponse kakaoLogin(@Valid @RequestBody KakaoLoginRequest request) {
         return authService.kakaoLogin(request.code(), request.redirectUri());
+    }
+
+    @Operation(summary = "Google SMTP로 이메일 인증 코드를 전송합니다")
+    @PostMapping("/email/send-code")
+    public EmailVerificationResponse sendEmailVerificationCode(@Valid @RequestBody EmailVerificationSendRequest request) {
+        return emailVerificationService.sendCode(request);
+    }
+
+    @Operation(summary = "이메일 인증 코드를 검증합니다")
+    @PostMapping("/email/verify")
+    public EmailVerificationResponse verifyEmailCode(@Valid @RequestBody EmailVerificationConfirmRequest request) {
+        return emailVerificationService.confirmCode(request);
     }
 
     /**
