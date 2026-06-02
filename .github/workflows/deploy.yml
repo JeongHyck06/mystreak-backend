@@ -65,12 +65,16 @@ jobs:
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           GOOGLE_MAIL_USERNAME: ${{ secrets.GOOGLE_MAIL_USERNAME }}
           GOOGLE_MAIL_APP_PASSWORD: ${{ secrets.GOOGLE_MAIL_APP_PASSWORD }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_MEDIA_BUCKET: ${{ secrets.S3_MEDIA_BUCKET }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           # 위 env 값들을 원격 셸로 전달 (스크립트/히스토리에 평문 노출 방지)
-          envs: IMAGE,GHCR_USER,GHCR_TOKEN,REGISTRY,MYSQL_URL,MYSQL_USERNAME,MYSQL_PASSWORD,CORS_ALLOWED_ORIGINS,KAKAO_REST_API_KEY,KAKAO_CLIENT_SECRET,GOOGLE_MAIL_USERNAME,GOOGLE_MAIL_APP_PASSWORD
+          envs: IMAGE,GHCR_USER,GHCR_TOKEN,REGISTRY,MYSQL_URL,MYSQL_USERNAME,MYSQL_PASSWORD,CORS_ALLOWED_ORIGINS,KAKAO_REST_API_KEY,KAKAO_CLIENT_SECRET,GOOGLE_MAIL_USERNAME,GOOGLE_MAIL_APP_PASSWORD,AWS_REGION,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,S3_MEDIA_BUCKET
           script: |
             set -e
 
@@ -97,6 +101,10 @@ jobs:
               -e KAKAO_CLIENT_SECRET="$KAKAO_CLIENT_SECRET" \
               -e GOOGLE_MAIL_USERNAME="$GOOGLE_MAIL_USERNAME" \
               -e GOOGLE_MAIL_APP_PASSWORD="$GOOGLE_MAIL_APP_PASSWORD" \
+              -e AWS_REGION="$AWS_REGION" \
+              -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+              -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+              -e S3_MEDIA_BUCKET="$S3_MEDIA_BUCKET" \
               "$IMAGE"
 
             # 미사용 이미지 정리
