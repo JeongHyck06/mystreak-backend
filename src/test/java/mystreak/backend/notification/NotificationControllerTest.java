@@ -30,7 +30,7 @@ class NotificationControllerTest {
     @Test
     void getNotificationsReturnsNotifications() throws Exception {
         when(authService.requireUserId("Bearer access-token")).thenReturn("me");
-        when(notificationService.getNotifications("check"))
+        when(notificationService.getNotifications("me", "check"))
                 .thenReturn(List.of(notification(false)));
 
         mockMvc.perform(get("/api/notifications")
@@ -44,7 +44,7 @@ class NotificationControllerTest {
     @Test
     void markAllReadReturnsReadNotifications() throws Exception {
         when(authService.requireUserId("Bearer access-token")).thenReturn("me");
-        when(notificationService.markAllRead())
+        when(notificationService.markAllRead("me"))
                 .thenReturn(List.of(notification(true)));
 
         mockMvc.perform(patch("/api/notifications/read-all")
