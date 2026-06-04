@@ -3,8 +3,10 @@ package mystreak.backend.checkin;
 import jakarta.annotation.PostConstruct;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import mystreak.backend.notification.NotificationService;
 import mystreak.backend.streak.StreakService;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -16,7 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class CheckInService {
 
     private static final String FEED_SELECT = """
-            SELECT ci.id, ci.pod_id, ci.author_id, p.name AS author, ci.meta, ci.text, ci.media_url,
+            SELECT ci.id, ci.pod_id, ci.author_id, p.name AS author, ci.meta, ci.created_at, ci.text, ci.media_url,
                    (SELECT COUNT(*) FROM check_in_likes l WHERE l.check_in_id = ci.id) AS like_count,
                    (SELECT COUNT(*) FROM check_in_likes l WHERE l.check_in_id = ci.id AND l.profile_id = :me) AS liked_by_me,
                    (SELECT COUNT(*) FROM check_in_checks c WHERE c.check_in_id = ci.id) AS check_count,
@@ -28,10 +30,12 @@ public class CheckInService {
 
     private final JdbcClient jdbcClient;
     private final StreakService streakService;
+    private final NotificationService notificationService;
 
-    public CheckInService(JdbcClient jdbcClient, StreakService streakService) {
+    public CheckInService(JdbcClient jdbcClient, StreakService streakService, NotificationService notificationService) {
         this.jdbcClient = jdbcClient;
         this.streakService = streakService;
+        this.notificationService = notificationService;
     }
 
     @PostConstruct
@@ -127,7 +131,7 @@ public class CheckInService {
 
     @Transactional
     public CheckInResponse toggleLike(String profileId, String checkInId) {
-        getCheckIn(checkInId, profileId);
+        CheckInResponse checkIn = getCheckIn(checkInId, profileId);
         int removed = jdbcClient.sql("DELETE FROM check_in_likes WHERE check_in_id = :id AND profile_id = :me")
                 .param("id", checkInId)
                 .param("me", profileId)
@@ -137,6 +141,9 @@ public class CheckInService {
                     .param("id", checkInId)
                     .param("me", profileId)
                     .update();
+            if (!checkIn.authorId().equals(profileId)) {
+                notificationService.notifyLike(checkIn.authorId(), profileName(profileId), podName(checkIn.podId()));
+            }
         }
         return getCheckIn(checkInId, profileId);
     }
@@ -156,6 +163,7 @@ public class CheckInService {
                     .param("id", checkInId)
                     .param("me", profileId)
                     .update();
+            notificationService.notifyCheck(checkIn.authorId(), profileName(profileId), podName(checkIn.podId()), checkIn.checks() + 1);
         }
         // 인증 성립 여부(남의 체크 1개 이상)가 바뀌었으므로 글 작성자의 스트릭/통계와 팟을 재계산한다.
         streakService.recalculateProfile(checkIn.authorId());
@@ -187,7 +195,7 @@ public class CheckInService {
 
     @Transactional
     public CommentResponse addComment(String profileId, String checkInId, CreateCommentRequest request) {
-        getCheckIn(checkInId, profileId);
+        CheckInResponse checkIn = getCheckIn(checkInId, profileId);
         String id = "comment-" + UUID.randomUUID();
         jdbcClient.sql("""
                         INSERT INTO check_in_comments (id, check_in_id, author_id, text)
@@ -204,6 +212,9 @@ public class CheckInService {
                 .query(String.class)
                 .optional()
                 .orElse("");
+        if (!checkIn.authorId().equals(profileId)) {
+            notificationService.notifyComment(checkIn.authorId(), author, podName(checkIn.podId()), request.text());
+        }
         return new CommentResponse(id, checkInId, profileId, author, request.text(), "방금 전", true);
     }
 
@@ -250,6 +261,22 @@ public class CheckInService {
                 .orElse(null);
     }
 
+    private String profileName(String profileId) {
+        return jdbcClient.sql("SELECT name FROM profiles WHERE id = :id")
+                .param("id", profileId)
+                .query(String.class)
+                .optional()
+                .orElse("누군가");
+    }
+
+    private String podName(String podId) {
+        return jdbcClient.sql("SELECT name FROM pods WHERE id = :id")
+                .param("id", podId)
+                .query(String.class)
+                .optional()
+                .orElse("팟");
+    }
+
     private CheckInResponse mapCheckIn(java.sql.ResultSet rs, String profileId) throws java.sql.SQLException {
         String authorId = rs.getString("author_id");
         return new CheckInResponse(
@@ -258,6 +285,7 @@ public class CheckInService {
                 authorId,
                 rs.getString("author"),
                 rs.getString("meta"),
+                createdAtIso(rs.getTimestamp("created_at")),
                 rs.getString("text"),
                 rs.getString("media_url"),
                 rs.getInt("like_count"),
@@ -267,5 +295,9 @@ public class CheckInService {
                 rs.getInt("comment_count"),
                 authorId != null && authorId.equals(profileId)
         );
+    }
+
+    private String createdAtIso(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant().atOffset(ZoneOffset.UTC).toString();
     }
 }

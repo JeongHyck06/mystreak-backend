@@ -6,6 +6,7 @@ public record CheckInResponse(
         String authorId,
         String author,
         String meta,
+        String createdAt,
         String text,
         String mediaUrl,
         int likes,
