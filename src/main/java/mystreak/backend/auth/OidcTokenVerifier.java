@@ -30,7 +30,7 @@ public class OidcTokenVerifier {
         this.googleAudiences = splitCsv(googleClientIds);
         this.appleAudiences = splitCsv(appleAudiences);
         this.googleProcessor = processor("https://www.googleapis.com/oauth2/v3/certs", JWSAlgorithm.RS256);
-        this.appleProcessor = processor("https://appleid.apple.com/auth/keys", JWSAlgorithm.ES256);
+        this.appleProcessor = processor("https://appleid.apple.com/auth/keys", JWSAlgorithm.RS256);
     }
 
     public OidcUser verifyGoogle(String idToken) {
