@@ -28,14 +28,22 @@ public class AuthService {
     private final DataSource dataSource;
     private final KakaoUserClient kakaoUserClient;
     private final OidcTokenVerifier oidcTokenVerifier;
+    private final EmailVerificationService emailVerificationService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public AuthService(JdbcClient jdbcClient, DataSource dataSource, KakaoUserClient kakaoUserClient, OidcTokenVerifier oidcTokenVerifier) {
+    public AuthService(
+            JdbcClient jdbcClient,
+            DataSource dataSource,
+            KakaoUserClient kakaoUserClient,
+            OidcTokenVerifier oidcTokenVerifier,
+            EmailVerificationService emailVerificationService
+    ) {
         this.jdbcClient = jdbcClient;
         this.dataSource = dataSource;
         this.kakaoUserClient = kakaoUserClient;
         this.oidcTokenVerifier = oidcTokenVerifier;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @PostConstruct
@@ -111,6 +119,9 @@ public class AuthService {
 
     @Transactional
     public AuthResponse signUp(SignUpRequest request) {
+        if (!emailVerificationService.isVerified(request.email(), "signup")) {
+            throw new AuthException(HttpStatus.FORBIDDEN, "이메일 인증을 완료해 주세요");
+        }
         if (findUserByEmail(request.email()) != null) {
             throw new AuthException(HttpStatus.CONFLICT, "Email is already registered");
         }

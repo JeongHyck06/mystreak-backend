@@ -3,6 +3,7 @@ package mystreak.backend.stats;
 import java.time.YearMonth;
 import java.util.Arrays;
 import java.util.List;
+import mystreak.backend.streak.StreakService;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 
@@ -10,12 +11,15 @@ import org.springframework.stereotype.Service;
 public class StatsService {
 
     private final JdbcClient jdbcClient;
+    private final StreakService streakService;
 
-    public StatsService(JdbcClient jdbcClient) {
+    public StatsService(JdbcClient jdbcClient, StreakService streakService) {
         this.jdbcClient = jdbcClient;
+        this.streakService = streakService;
     }
 
     public StatsResponse getMyStats(String profileId, Integer year, Integer month) {
+        streakService.recalculateProfile(profileId);
         YearMonth now = YearMonth.now();
         YearMonth selectedMonth = YearMonth.of(
                 year == null ? now.getYear() : year,
