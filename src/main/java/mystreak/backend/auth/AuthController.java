@@ -60,6 +60,18 @@ public class AuthController {
         return authService.kakaoLogin(request.code(), request.redirectUri());
     }
 
+    @Operation(summary = "Google ID 토큰으로 로그인/회원가입합니다")
+    @PostMapping("/google")
+    public AuthResponse googleLogin(@Valid @RequestBody IdTokenLoginRequest request) {
+        return authService.googleLogin(request.idToken());
+    }
+
+    @Operation(summary = "Apple ID 토큰으로 로그인/회원가입합니다")
+    @PostMapping("/apple")
+    public AuthResponse appleLogin(@Valid @RequestBody IdTokenLoginRequest request) {
+        return authService.appleLogin(request.idToken(), request.fullName());
+    }
+
     @Operation(summary = "Google SMTP로 이메일 인증 코드를 전송합니다")
     @PostMapping("/email/send-code")
     public EmailVerificationResponse sendEmailVerificationCode(@Valid @RequestBody EmailVerificationSendRequest request) {
