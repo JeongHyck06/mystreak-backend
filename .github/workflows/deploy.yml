@@ -64,7 +64,7 @@ jobs:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           GOOGLE_OAUTH_CLIENT_IDS: ${{ secrets.GOOGLE_OAUTH_CLIENT_IDS }}
-          APPLE_OAUTH_AUDIENCES: ${{ secrets.APPLE_OAUTH_AUDIENCES }}
+          APPLE_OAUTH_AUDIENCES: ${{ secrets.APPLE_OAUTH_AUDIENCES || 'com.wjdgur050700.mystreak' }}
           GOOGLE_MAIL_USERNAME: ${{ secrets.GOOGLE_MAIL_USERNAME }}
           GOOGLE_MAIL_APP_PASSWORD: ${{ secrets.GOOGLE_MAIL_APP_PASSWORD }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
