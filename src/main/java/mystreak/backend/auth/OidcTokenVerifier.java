@@ -11,12 +11,22 @@ import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import java.net.URI;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OidcTokenVerifier {
+
+    private static final Logger log = LoggerFactory.getLogger(OidcTokenVerifier.class);
+    private static final List<String> DEFAULT_GOOGLE_AUDIENCES = List.of(
+            "822882547973-j0nnsap9qdgkg39811t801k8eda8b668.apps.googleusercontent.com",
+            "822882547973-vsfjkdgi0agompppamr0jpn21cg8c78f.apps.googleusercontent.com"
+    );
+    private static final List<String> DEFAULT_APPLE_AUDIENCES = List.of("com.wjdgur050700.mystreak");
 
     private final List<String> googleAudiences;
     private final List<String> appleAudiences;
@@ -27,8 +37,8 @@ public class OidcTokenVerifier {
             @Value("${oauth.google.client-ids:}") String googleClientIds,
             @Value("${oauth.apple.audiences:com.wjdgur050700.mystreak}") String appleAudiences
     ) throws Exception {
-        this.googleAudiences = splitCsv(googleClientIds);
-        this.appleAudiences = splitCsv(appleAudiences);
+        this.googleAudiences = withDefaults(splitCsv(googleClientIds), DEFAULT_GOOGLE_AUDIENCES);
+        this.appleAudiences = withDefaults(splitCsv(appleAudiences), DEFAULT_APPLE_AUDIENCES);
         this.googleProcessor = processor("https://www.googleapis.com/oauth2/v3/certs", JWSAlgorithm.RS256);
         this.appleProcessor = processor("https://appleid.apple.com/auth/keys", JWSAlgorithm.RS256);
     }
@@ -74,6 +84,12 @@ public class OidcTokenVerifier {
             throw new AuthException(HttpStatus.UNAUTHORIZED, "소셜 로그인 발급자가 올바르지 않아요.");
         }
         if (claims.getAudience().stream().noneMatch(audiences::contains)) {
+            log.warn(
+                    "Social login audience mismatch. issuer={}, tokenAudiences={}, allowedAudiences={}",
+                    claims.getIssuer(),
+                    claims.getAudience(),
+                    audiences
+            );
             throw new AuthException(HttpStatus.UNAUTHORIZED, "소셜 로그인 대상 앱이 올바르지 않아요.");
         }
         Date expiration = claims.getExpirationTime();
@@ -102,6 +118,12 @@ public class OidcTokenVerifier {
         return List.of(value.split(",")).stream()
                 .map(String::trim)
                 .filter(item -> !item.isBlank())
+                .toList();
+    }
+
+    private List<String> withDefaults(List<String> configured, List<String> defaults) {
+        return Stream.concat(configured.stream(), defaults.stream())
+                .distinct()
                 .toList();
     }
 
