@@ -31,6 +31,12 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+oauth:
+  google:
+    client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
+  apple:
+    audiences: ${APPLE_OAUTH_AUDIENCES:com.wjdgur050700.mystreak}
+
 app:
   media:
     s3:

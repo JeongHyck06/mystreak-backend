@@ -27,6 +27,7 @@ public class AuthService {
     private final JdbcClient jdbcClient;
     private final DataSource dataSource;
     private final KakaoUserClient kakaoUserClient;
+    private final OidcTokenVerifier oidcTokenVerifier;
     private final EmailVerificationService emailVerificationService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecureRandom secureRandom = new SecureRandom();
@@ -35,11 +36,13 @@ public class AuthService {
             JdbcClient jdbcClient,
             DataSource dataSource,
             KakaoUserClient kakaoUserClient,
+            OidcTokenVerifier oidcTokenVerifier,
             EmailVerificationService emailVerificationService
     ) {
         this.jdbcClient = jdbcClient;
         this.dataSource = dataSource;
         this.kakaoUserClient = kakaoUserClient;
+        this.oidcTokenVerifier = oidcTokenVerifier;
         this.emailVerificationService = emailVerificationService;
     }
 
@@ -182,6 +185,63 @@ public class AuthService {
         }
 
         return createSession(userId, email);
+    }
+
+    @Transactional
+    public AuthResponse googleLogin(String idToken) {
+        OidcTokenVerifier.OidcUser user = oidcTokenVerifier.verifyGoogle(idToken);
+        return socialLogin("google", user.subject(), user.email(), user.name(), "구글 사용자");
+    }
+
+    @Transactional
+    public AuthResponse appleLogin(String idToken, String fullName) {
+        OidcTokenVerifier.OidcUser user = oidcTokenVerifier.verifyApple(idToken);
+        String name = fullName != null && !fullName.isBlank() ? fullName : user.name();
+        return socialLogin("apple", user.subject(), user.email(), name, "Apple 사용자");
+    }
+
+    private AuthResponse socialLogin(String provider, String providerId, String email, String name, String fallbackName) {
+        String userId = findUserIdByProvider(provider, providerId);
+        if (userId == null && email != null && !email.isBlank()) {
+            AuthUser existing = findUserByEmail(email);
+            if (existing != null) {
+                userId = existing.id();
+            }
+        }
+        if (userId == null) {
+            userId = UUID.randomUUID().toString();
+            String displayName = name != null && !name.isBlank() ? name.trim() : fallbackName;
+            String handle = generateUniqueHandle(displayName);
+
+            jdbcClient.sql("""
+                            INSERT INTO auth_users (id, email, password_hash, provider, provider_id)
+                            VALUES (:id, :email, NULL, :provider, :providerId)
+                            """)
+                    .param("id", userId)
+                    .param("email", email)
+                    .param("provider", provider)
+                    .param("providerId", providerId)
+                    .update();
+            createProfile(userId, email != null ? email : "", displayName, handle);
+        } else {
+            linkProvider(userId, provider, providerId);
+        }
+
+        return createSession(userId, email != null ? email : findEmailById(userId));
+    }
+
+    private void linkProvider(String userId, String provider, String providerId) {
+        jdbcClient.sql("""
+                        UPDATE auth_users
+                        SET provider = :provider,
+                            provider_id = :providerId
+                        WHERE id = :id
+                          AND (provider = 'local' OR provider_id IS NULL)
+                        """)
+                .param("id", userId)
+                .param("provider", provider)
+                .param("providerId", providerId)
+                .update();
     }
 
     @Transactional
