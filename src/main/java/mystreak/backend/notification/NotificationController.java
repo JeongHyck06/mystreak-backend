@@ -32,14 +32,14 @@ public class NotificationController {
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
             @RequestParam(required = false) String type
     ) {
-        authService.requireUserId(authorization);
-        return notificationService.getNotifications(type);
+        String profileId = authService.requireUserId(authorization);
+        return notificationService.getNotifications(profileId, type);
     }
 
     @Operation(summary = "모든 알림을 읽음 처리합니다")
     @PatchMapping("/read-all")
     public List<NotificationResponse> markAllRead(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
-        authService.requireUserId(authorization);
-        return notificationService.markAllRead();
+        String profileId = authService.requireUserId(authorization);
+        return notificationService.markAllRead(profileId);
     }
 }
