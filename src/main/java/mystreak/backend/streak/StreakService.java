@@ -127,7 +127,7 @@ public class StreakService {
         }
 
         LocalDate weekStart = today.minusDays(6);
-        int weeklyChecks = (int) dates.stream()
+        int weeklyChecks = (int) daySet.stream()
                 .filter(date -> !date.isBefore(weekStart) && !date.isAfter(today))
                 .count();
 
