@@ -2,9 +2,9 @@ package mystreak.backend.checkin;
 
 import jakarta.annotation.PostConstruct;
 import java.sql.Timestamp;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import mystreak.backend.common.AppTime;
 import mystreak.backend.notification.NotificationService;
 import mystreak.backend.streak.StreakService;
 import org.springframework.http.HttpStatus;
@@ -84,12 +84,13 @@ public class CheckInService {
     public CheckInResponse createCheckIn(String profileId, String podId, CreateCheckInRequest request) {
         String id = "feed-" + UUID.randomUUID();
         jdbcClient.sql("""
-                        INSERT INTO check_ins (id, pod_id, author_id, meta, text, media_url, likes, comments, checked_by_me)
-                        VALUES (:id, :podId, :authorId, '방금 전', :text, :mediaUrl, 0, 0, FALSE)
+                        INSERT INTO check_ins (id, pod_id, author_id, meta, created_at, text, media_url, likes, comments, checked_by_me)
+                        VALUES (:id, :podId, :authorId, '방금 전', :createdAt, :text, :mediaUrl, 0, 0, FALSE)
                         """)
                 .param("id", id)
                 .param("podId", podId)
                 .param("authorId", profileId)
+                .param("createdAt", AppTime.nowTimestamp())
                 .param("text", request.text())
                 .param("mediaUrl", request.mediaUrl())
                 .update();
@@ -278,6 +279,6 @@ public class CheckInService {
     }
 
     private String createdAtIso(Timestamp timestamp) {
-        return timestamp == null ? null : timestamp.toInstant().atOffset(ZoneOffset.UTC).toString();
+        return timestamp == null ? null : AppTime.toAppDateTimeString(timestamp);
     }
 }

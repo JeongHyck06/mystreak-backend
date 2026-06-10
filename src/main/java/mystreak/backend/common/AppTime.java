@@ -1,6 +1,7 @@
 package mystreak.backend.common;
 
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 
@@ -15,6 +16,10 @@ public final class AppTime {
         return LocalDate.now(ZONE);
     }
 
+    public static Timestamp nowTimestamp() {
+        return Timestamp.from(Instant.now());
+    }
+
     public static Timestamp startOfToday() {
         return startOfDay(today());
     }
@@ -25,6 +30,10 @@ public final class AppTime {
 
     public static LocalDate toAppDate(Timestamp timestamp) {
         return timestamp.toInstant().atZone(ZONE).toLocalDate();
+    }
+
+    public static String toAppDateTimeString(Timestamp timestamp) {
+        return timestamp.toInstant().atZone(ZONE).toOffsetDateTime().toString();
     }
 
     private static Timestamp startOfDay(LocalDate date) {
