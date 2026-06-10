@@ -2,7 +2,6 @@ package mystreak.backend.checkin;
 
 import jakarta.annotation.PostConstruct;
 import java.sql.Timestamp;
-import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
@@ -83,10 +82,6 @@ public class CheckInService {
 
     @Transactional
     public CheckInResponse createCheckIn(String profileId, String podId, CreateCheckInRequest request) {
-        if (hasCheckedInToday(profileId, podId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "오늘 이미 인증을 완료했어요. 인증 글은 수정하거나 삭제할 수 있어요.");
-        }
-
         String id = "feed-" + UUID.randomUUID();
         jdbcClient.sql("""
                         INSERT INTO check_ins (id, pod_id, author_id, meta, text, media_url, likes, comments, checked_by_me)
@@ -225,21 +220,6 @@ public class CheckInService {
                 .query((rs, rowNum) -> mapCheckIn(rs, profileId))
                 .optional()
                 .orElseThrow(() -> new CheckInNotFoundException(checkInId));
-    }
-
-    private boolean hasCheckedInToday(String profileId, String podId) {
-        Timestamp startOfDay = Timestamp.valueOf(LocalDate.now().atStartOfDay());
-        Integer count = jdbcClient.sql("""
-                        SELECT COUNT(*)
-                        FROM check_ins
-                        WHERE author_id = :profileId AND pod_id = :podId AND created_at >= :startOfDay
-                        """)
-                .param("profileId", profileId)
-                .param("podId", podId)
-                .param("startOfDay", startOfDay)
-                .query(Integer.class)
-                .single();
-        return count != null && count > 0;
     }
 
     private void requireOwnership(String profileId, String checkInId) {

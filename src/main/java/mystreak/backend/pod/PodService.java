@@ -1,10 +1,10 @@
 package mystreak.backend.pod;
 
-    import java.security.SecureRandom;
+import java.security.SecureRandom;
 import java.sql.Timestamp;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import mystreak.backend.common.AppTime;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -24,7 +24,8 @@ public class PodService {
     }
 
     public List<PodResponse> getMyPods(String profileId) {
-        Timestamp startOfDay = Timestamp.valueOf(LocalDate.now().atStartOfDay());
+        Timestamp startOfDay = AppTime.startOfToday();
+        Timestamp startOfNextDay = AppTime.startOfTomorrow();
         return jdbcClient.sql("""
                         SELECT p.id, p.name, p.description,
                                (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = p.id) AS member_count,
@@ -32,7 +33,8 @@ public class PodService {
                                p.streak, p.tag_line, p.invite_code,
                                (SELECT COUNT(*) FROM check_ins ci
                                 WHERE ci.pod_id = p.id AND ci.author_id = :profileId
-                                  AND ci.created_at >= :startOfDay) AS my_checks_today
+                                  AND ci.created_at >= :startOfDay
+                                  AND ci.created_at < :startOfNextDay) AS my_checks_today
                         FROM pods p
                         JOIN pod_members pm ON pm.pod_id = p.id
                         WHERE pm.profile_id = :profileId
@@ -40,6 +42,7 @@ public class PodService {
                         """)
                 .param("profileId", profileId)
                 .param("startOfDay", startOfDay)
+                .param("startOfNextDay", startOfNextDay)
                 .query((rs, rowNum) -> toPodResponse(
                         rs.getString("id"),
                         rs.getString("name"),
