@@ -3,11 +3,11 @@ package mystreak.backend.streak;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import mystreak.backend.common.AppTime;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,8 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StreakService {
 
-    private static final ZoneId ZONE = ZoneId.systemDefault();
-
     private final JdbcClient jdbcClient;
 
     public StreakService(JdbcClient jdbcClient) {
@@ -30,7 +28,7 @@ public class StreakService {
     @Transactional
     public void recalculateProfile(String profileId) {
         List<LocalDate> dates = checkInDates(profileId, null);
-        LocalDate today = LocalDate.now(ZONE);
+        LocalDate today = AppTime.today();
         Set<LocalDate> daySet = new HashSet<>(dates);
         List<LocalDate> distinctDays = daySet.stream().sorted().toList();
 
@@ -56,7 +54,7 @@ public class StreakService {
 
     @Transactional
     public void recalculatePod(String podId) {
-        LocalDate today = LocalDate.now(ZONE);
+        LocalDate today = AppTime.today();
 
         List<String> memberIds = jdbcClient.sql("SELECT profile_id FROM pod_members WHERE pod_id = :podId")
                 .param("podId", podId)
@@ -194,7 +192,7 @@ public class StreakService {
                 .list()
                 .stream()
                 .filter(timestamp -> timestamp != null)
-                .map(timestamp -> timestamp.toInstant().atZone(ZONE).toLocalDate())
+                .map(AppTime::toAppDate)
                 .sorted()
                 .collect(Collectors.toList());
     }
