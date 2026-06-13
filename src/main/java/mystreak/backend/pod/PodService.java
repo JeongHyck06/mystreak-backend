@@ -223,7 +223,7 @@ public class PodService {
     public List<PodMemberResponse> getMembers(String podId) {
         getPod(podId);
         return jdbcClient.sql("""
-                        SELECT p.id, p.name, p.handle, pm.streak, pm.checked_in_today, pm.member_role
+                        SELECT p.id, p.name, p.handle, p.avatar_url, pm.streak, pm.checked_in_today, pm.member_role
                         FROM pod_members pm
                         JOIN profiles p ON p.id = pm.profile_id
                         WHERE pm.pod_id = :podId
@@ -236,7 +236,8 @@ public class PodService {
                         rs.getString("handle"),
                         rs.getInt("streak"),
                         rs.getBoolean("checked_in_today"),
-                        rs.getString("member_role")
+                        rs.getString("member_role"),
+                        rs.getString("avatar_url")
                 ))
                 .list();
     }

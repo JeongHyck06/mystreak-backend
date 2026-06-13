@@ -7,6 +7,7 @@ import mystreak.backend.auth.AuthService;
 import mystreak.backend.config.OpenApiConfig;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -30,6 +31,16 @@ public class ProfileController {
     @GetMapping("/me")
     public ProfileResponse getMyProfile(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         return profileService.getMyProfile(authService.requireUserId(authorization));
+    }
+
+    @Operation(summary = "다른 사용자의 공개 프로필을 조회합니다")
+    @GetMapping("/{profileId}")
+    public ProfileResponse getProfile(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @PathVariable String profileId
+    ) {
+        authService.requireUserId(authorization);
+        return profileService.getMyProfile(profileId);
     }
 
     @Operation(summary = "내 프로필을 수정합니다")

@@ -6,6 +6,7 @@ public record PodMemberResponse(
         String handle,
         int streak,
         boolean checkedInToday,
-        String role
+        String role,
+        String avatarUrl
 ) {
 }

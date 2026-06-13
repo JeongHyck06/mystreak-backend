@@ -92,7 +92,7 @@ class PodControllerTest {
     @Test
     void getMembersReturnsPodMembers() throws Exception {
         when(podService.getMembers("running"))
-                .thenReturn(List.of(new PodMemberResponse("me", "김다혜", "@doitall", 12, true, "나")));
+                .thenReturn(List.of(new PodMemberResponse("me", "김다혜", "@doitall", 12, true, "나", "https://example.com/me.jpg")));
 
         mockMvc.perform(get("/api/pods/running/members"))
                 .andExpect(status().isOk())
