@@ -51,27 +51,28 @@ class ProfileControllerTest {
     void updateMyProfileReturnsUpdatedProfile() throws Exception {
         when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(profileService.updateMyProfile(any(String.class), any(UpdateProfileRequest.class)))
-                .thenReturn(new ProfileResponse("me", "김다혜", "@new.handle", "kdh@example.com", "매일 조금씩 더 나아지는 중", 27, 42, 146, 38));
+                .thenReturn(new ProfileResponse("me", "김다혜", "@new.handle", "kdh@example.com", "매일 조금씩 더 나아지는 중", "https://example.com/avatar.jpg", 27, 42, 146, 38));
 
         mockMvc.perform(patch("/api/profile/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateProfileRequest("김다혜", "@new.handle", "매일 조금씩 더 나아지는 중"))))
+                        .content(objectMapper.writeValueAsString(new UpdateProfileRequest("김다혜", "@new.handle", "매일 조금씩 더 나아지는 중", "https://example.com/avatar.jpg"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.handle").value("@new.handle"))
-                .andExpect(jsonPath("$.bio").value("매일 조금씩 더 나아지는 중"));
+                .andExpect(jsonPath("$.bio").value("매일 조금씩 더 나아지는 중"))
+                .andExpect(jsonPath("$.avatarUrl").value("https://example.com/avatar.jpg"));
     }
 
     @Test
     void updateMyProfileRejectsInvalidHandle() throws Exception {
         mockMvc.perform(patch("/api/profile/me")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateProfileRequest("김다혜", "invalid", "bio"))))
+                        .content(objectMapper.writeValueAsString(new UpdateProfileRequest("김다혜", "invalid", "bio", null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
     }
 
     private ProfileResponse profile() {
-        return new ProfileResponse("me", "김다혜", "@doitall", "kdh@example.com", "오이, 당근 입에 안 댑니다", 27, 42, 146, 38);
+        return new ProfileResponse("me", "김다혜", "@doitall", "kdh@example.com", "오이, 당근 입에 안 댑니다", null, 27, 42, 146, 38);
     }
 }

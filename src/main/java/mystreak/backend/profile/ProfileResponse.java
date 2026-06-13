@@ -6,6 +6,7 @@ public record ProfileResponse(
         String handle,
         String email,
         String bio,
+        String avatarUrl,
         int currentStreak,
         int bestStreak,
         int totalChecks,
