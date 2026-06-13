@@ -1,13 +1,16 @@
 package mystreak.backend.notification;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
 import mystreak.backend.auth.AuthService;
+import org.springframework.http.MediaType;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -51,6 +54,21 @@ class NotificationControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].read").value(true));
+    }
+
+    @Test
+    void registerPushTokenReturnsNoContent() throws Exception {
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
+
+        mockMvc.perform(post("/api/notifications/push-token")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"token":"ExponentPushToken[test]","platform":"ios"}
+                                """))
+                .andExpect(status().isNoContent());
+
+        verify(notificationService).registerPushToken("me", "ExponentPushToken[test]", "ios");
     }
 
     private NotificationResponse notification(boolean read) {

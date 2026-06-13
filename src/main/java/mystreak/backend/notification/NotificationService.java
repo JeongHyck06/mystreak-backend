@@ -1,21 +1,37 @@
 package mystreak.backend.notification;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class NotificationService {
 
+    private static final URI EXPO_PUSH_URL = URI.create("https://exp.host/--/api/v2/push/send");
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+
     private final JdbcClient jdbcClient;
     private final DataSource dataSource;
+    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public NotificationService(JdbcClient jdbcClient, DataSource dataSource) {
         this.jdbcClient = jdbcClient;
@@ -44,6 +60,15 @@ public class NotificationService {
         if (!columnExists("notifications", "created_at")) {
             jdbcClient.sql("ALTER TABLE notifications ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP").update();
         }
+        jdbcClient.sql("""
+                        CREATE TABLE IF NOT EXISTS push_tokens (
+                            token VARCHAR(255) PRIMARY KEY,
+                            profile_id VARCHAR(64) NOT NULL,
+                            platform VARCHAR(20) NOT NULL,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """)
+                .update();
     }
 
     public List<NotificationResponse> getNotifications(String profileId, String type) {
@@ -82,6 +107,47 @@ public class NotificationService {
                 "%s · %s".formatted(podName, preview), "방금 전", "comment", true);
     }
 
+    @Transactional
+    public void registerPushToken(String profileId, String token, String platform) {
+        int updated = jdbcClient.sql("""
+                        UPDATE push_tokens
+                        SET profile_id = :profileId,
+                            platform = :platform,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE token = :token
+                        """)
+                .param("token", token)
+                .param("profileId", profileId)
+                .param("platform", platform)
+                .update();
+        if (updated > 0) {
+            return;
+        }
+
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO push_tokens (token, profile_id, platform, updated_at)
+                            VALUES (:token, :profileId, :platform, CURRENT_TIMESTAMP)
+                            """)
+                    .param("token", token)
+                    .param("profileId", profileId)
+                    .param("platform", platform)
+                    .update();
+        } catch (DuplicateKeyException ignored) {
+            jdbcClient.sql("""
+                            UPDATE push_tokens
+                            SET profile_id = :profileId,
+                                platform = :platform,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE token = :token
+                            """)
+                    .param("token", token)
+                    .param("profileId", profileId)
+                    .param("platform", platform)
+                    .update();
+        }
+    }
+
     private void create(String recipientId, String title, String body, String meta, String type, boolean urgent) {
         jdbcClient.sql("""
                         INSERT INTO notifications (id, recipient_id, title, body, meta, notification_type, urgent, is_read)
@@ -95,6 +161,75 @@ public class NotificationService {
                 .param("type", type)
                 .param("urgent", urgent)
                 .update();
+        sendPush(recipientId, title, body, type);
+    }
+
+    private void sendPush(String recipientId, String title, String body, String type) {
+        if (recipientId == null || recipientId.isBlank()) {
+            return;
+        }
+
+        List<String> tokens = jdbcClient.sql("""
+                        SELECT token
+                        FROM push_tokens
+                        WHERE profile_id = :recipientId
+                        """)
+                .param("recipientId", recipientId)
+                .query(String.class)
+                .list();
+        if (tokens.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> messages = tokens.stream()
+                .map(token -> Map.<String, Object>of(
+                        "to", token,
+                        "title", title,
+                        "body", body,
+                        "sound", "default",
+                        "data", Map.of("type", type)
+                ))
+                .toList();
+
+        try {
+            HttpRequest request = HttpRequest.newBuilder(EXPO_PUSH_URL)
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(messages)))
+                    .build();
+            httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                    .thenAccept(response -> logPushResponse(response, tokens.size()))
+                    .exceptionally(error -> {
+                        log.warn("Expo 푸시 전송 요청에 실패했습니다. tokenCount={}", tokens.size(), error);
+                        return null;
+                    });
+        } catch (JsonProcessingException ignored) {
+            // 푸시 전송 실패는 앱 내부 알림 저장을 막지 않는다.
+        }
+    }
+
+    private void logPushResponse(HttpResponse<String> response, int tokenCount) {
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            log.warn("Expo 푸시 전송이 HTTP {}로 실패했습니다. tokenCount={}, body={}",
+                    response.statusCode(), tokenCount, response.body());
+            return;
+        }
+
+        try {
+            JsonNode data = objectMapper.readTree(response.body()).path("data");
+            if (!data.isArray()) {
+                return;
+            }
+            for (JsonNode ticket : data) {
+                if ("error".equals(ticket.path("status").asText())) {
+                    log.warn("Expo 푸시 티켓이 거절되었습니다. error={}, message={}, details={}",
+                            ticket.path("details").path("error").asText(),
+                            ticket.path("message").asText(),
+                            ticket.path("details"));
+                }
+            }
+        } catch (JsonProcessingException e) {
+            log.warn("Expo 푸시 응답을 해석하지 못했습니다. body={}", response.body(), e);
+        }
     }
 
     private List<NotificationResponse> findNotifications(String profileId, String type) {
