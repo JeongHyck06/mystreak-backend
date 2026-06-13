@@ -17,7 +17,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class CheckInService {
 
     private static final String FEED_SELECT = """
-            SELECT ci.id, ci.pod_id, ci.author_id, p.name AS author, ci.meta, ci.created_at, ci.text, ci.media_url,
+            SELECT ci.id, ci.pod_id, ci.author_id, p.name AS author, p.avatar_url AS author_avatar_url,
+                   ci.meta, ci.created_at, ci.text, ci.media_url,
                    (SELECT COUNT(*) FROM check_in_likes l WHERE l.check_in_id = ci.id) AS like_count,
                    (SELECT COUNT(*) FROM check_in_likes l WHERE l.check_in_id = ci.id AND l.profile_id = :me) AS liked_by_me,
                    (SELECT COUNT(*) FROM check_in_checks c WHERE c.check_in_id = ci.id) AS check_count,
@@ -274,7 +275,8 @@ public class CheckInService {
                 rs.getInt("check_count"),
                 rs.getInt("checked_by_me") > 0,
                 rs.getInt("comment_count"),
-                authorId != null && authorId.equals(profileId)
+                authorId != null && authorId.equals(profileId),
+                rs.getString("author_avatar_url")
         );
     }
 

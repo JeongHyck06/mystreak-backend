@@ -14,6 +14,7 @@ public record CheckInResponse(
         int checks,
         boolean checkedByMe,
         int comments,
-        boolean mine
+        boolean mine,
+        String authorAvatarUrl
 ) {
 }

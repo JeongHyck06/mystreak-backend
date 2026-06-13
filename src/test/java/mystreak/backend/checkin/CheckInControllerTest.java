@@ -52,7 +52,7 @@ class CheckInControllerTest {
     void createCheckInReturnsCreatedFeedItem() throws Exception {
         when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(checkInService.createCheckIn(any(String.class), any(String.class), any(CreateCheckInRequest.class)))
-                .thenReturn(new CheckInResponse("feed-3", "running", "me", "김다혜", "방금 전", "2026-06-04T00:00:00Z", "오늘 날씨가 별로여서 간단하게 했어요", null, 0, false, 0, false, 0, true));
+                .thenReturn(new CheckInResponse("feed-3", "running", "me", "김다혜", "방금 전", "2026-06-04T00:00:00Z", "오늘 날씨가 별로여서 간단하게 했어요", null, 0, false, 0, false, 0, true, "https://example.com/me.jpg"));
 
         mockMvc.perform(post("/api/pods/running/check-ins")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
@@ -66,7 +66,7 @@ class CheckInControllerTest {
     void checkReturnsReactionState() throws Exception {
         when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(checkInService.toggleCheck("me", "feed-1"))
-                .thenReturn(new CheckInResponse("feed-1", "running", "other", "일정형", "방금 전", "2026-06-04T00:00:00Z", "잠 안 와서 코딩함", null, 18, false, 19, true, 3, false));
+                .thenReturn(new CheckInResponse("feed-1", "running", "other", "일정형", "방금 전", "2026-06-04T00:00:00Z", "잠 안 와서 코딩함", null, 18, false, 19, true, 3, false, "https://example.com/other.jpg"));
 
         mockMvc.perform(post("/api/check-ins/feed-1/checks")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
@@ -79,7 +79,7 @@ class CheckInControllerTest {
     void likeReturnsUpdatedState() throws Exception {
         when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(checkInService.toggleLike("me", "feed-1"))
-                .thenReturn(new CheckInResponse("feed-1", "running", "other", "일정형", "방금 전", "2026-06-04T00:00:00Z", "잠 안 와서 코딩함", null, 19, true, 0, false, 3, false));
+                .thenReturn(new CheckInResponse("feed-1", "running", "other", "일정형", "방금 전", "2026-06-04T00:00:00Z", "잠 안 와서 코딩함", null, 19, true, 0, false, 3, false, "https://example.com/other.jpg"));
 
         mockMvc.perform(post("/api/check-ins/feed-1/likes")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
@@ -114,6 +114,6 @@ class CheckInControllerTest {
     }
 
     private CheckInResponse checkIn() {
-        return new CheckInResponse("feed-1", "running", "other", "일정형", "오늘 아침 5:24", "2026-06-04T00:00:00Z", "잠 안 와서 코딩함", null, 18, false, 5, false, 3, false);
+        return new CheckInResponse("feed-1", "running", "other", "일정형", "오늘 아침 5:24", "2026-06-04T00:00:00Z", "잠 안 와서 코딩함", null, 18, false, 5, false, 3, false, "https://example.com/other.jpg");
     }
 }
