@@ -2,6 +2,9 @@ package mystreak.backend.notification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
@@ -26,6 +29,25 @@ class NotificationServiceTest {
 
         assertThat(fixture.service.markAllRead("me"))
                 .allMatch(NotificationResponse::read);
+    }
+
+    @Test
+    void notificationMetaUsesCreatedAtRelativeTime() {
+        Fixture fixture = fixture();
+
+        fixture.service.notifyLike("me", "지수", "러닝");
+        fixture.jdbcClient.sql("""
+                        UPDATE notifications
+                        SET created_at = :createdAt
+                        WHERE recipient_id = 'me'
+                        """)
+                .param("createdAt", Timestamp.from(Instant.now().minus(2, ChronoUnit.HOURS)))
+                .update();
+
+        List<NotificationResponse> notifications = fixture.service.getNotifications("me", "like");
+
+        assertThat(notifications).hasSize(1);
+        assertThat(notifications.get(0).meta()).isEqualTo("2시간 전");
     }
 
     @Test

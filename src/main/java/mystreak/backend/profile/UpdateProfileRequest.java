@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 public record UpdateProfileRequest(
         @NotBlank @Size(max = 30) String name,
         @NotBlank @Pattern(regexp = "^@[a-zA-Z0-9._]{3,30}$") String handle,
-        @Size(max = 50) String bio
+        @Size(max = 50) String bio,
+        @Size(max = 500) String avatarUrl
 ) {
 }

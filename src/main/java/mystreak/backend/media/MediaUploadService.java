@@ -18,7 +18,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 @Service
 public class MediaUploadService {
 
-    private static final int MAX_VIDEO_SECONDS = 10;
+    private static final int MAX_VIDEO_SECONDS = 15;
     private static final Set<String> IMAGE_CONTENT_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
     private static final Set<String> VIDEO_CONTENT_TYPES = Set.of("video/mp4", "video/quicktime");
     private static final Map<String, String> EXTENSIONS = Map.of(
@@ -85,7 +85,7 @@ public class MediaUploadService {
         }
         if (request.mediaType() == UploadMediaType.VIDEO) {
             if (request.durationSeconds() == null || request.durationSeconds() > MAX_VIDEO_SECONDS) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "동영상은 10초 이내만 업로드할 수 있습니다.");
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "동영상은 15초 이내만 업로드할 수 있습니다.");
             }
         }
     }

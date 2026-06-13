@@ -6,6 +6,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import javax.sql.DataSource;
+import mystreak.backend.common.AppTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -14,14 +15,16 @@ class StreakServiceTest {
 
     @Test
     void weeklyChecksCountDistinctDaysNotPosts() {
-        JdbcClient jdbcClient = jdbcClient();
-        StreakService service = new StreakService(jdbcClient);
+        Fixture fixture = fixture();
+        JdbcClient jdbcClient = fixture.jdbcClient();
+        StreakService service = new StreakService(jdbcClient, fixture.dataSource());
 
         jdbcClient.sql("INSERT INTO profiles (id, name, handle, email) VALUES ('me', '나', '@me', 'me@example.com')").update();
         jdbcClient.sql("INSERT INTO pods (id, name, description, max_members, tag_line) VALUES ('pod', '팟', '설명', 8, '사진')").update();
         jdbcClient.sql("INSERT INTO pod_members (pod_id, profile_id) VALUES ('pod', 'me')").update();
-        insertVerifiedCheckIn(jdbcClient, "feed-1", Timestamp.from(Instant.now().minus(2, ChronoUnit.HOURS)));
-        insertVerifiedCheckIn(jdbcClient, "feed-2", Timestamp.from(Instant.now().minus(1, ChronoUnit.HOURS)));
+        Instant todayNoon = AppTime.startOfToday().toInstant().plus(12, ChronoUnit.HOURS);
+        insertVerifiedCheckIn(jdbcClient, "feed-1", Timestamp.from(todayNoon));
+        insertVerifiedCheckIn(jdbcClient, "feed-2", Timestamp.from(todayNoon.plus(1, ChronoUnit.HOURS)));
 
         service.recalculateProfile("me");
 
@@ -36,9 +39,35 @@ class StreakServiceTest {
         assertThat(totalChecks).isEqualTo(2);
     }
 
-    private JdbcClient jdbcClient() {
+    @Test
+    void trophiesReflectCurrentStreakMilestones() {
+        Fixture fixture = fixture();
+        JdbcClient jdbcClient = fixture.jdbcClient();
+        StreakService service = new StreakService(jdbcClient, fixture.dataSource());
+
+        jdbcClient.sql("INSERT INTO profiles (id, name, handle, email) VALUES ('me', '나', '@me', 'me@example.com')").update();
+        jdbcClient.sql("INSERT INTO pods (id, name, description, max_members, tag_line) VALUES ('pod', '팟', '설명', 8, '사진')").update();
+        jdbcClient.sql("INSERT INTO pod_members (pod_id, profile_id) VALUES ('pod', 'me')").update();
+        for (int daysAgo = 0; daysAgo < 30; daysAgo++) {
+            insertVerifiedCheckIn(jdbcClient, "feed-" + daysAgo, Timestamp.from(Instant.now().minus(daysAgo, ChronoUnit.DAYS)));
+        }
+
+        service.recalculateProfile("me");
+
+        Integer trophies = jdbcClient.sql("SELECT trophies FROM profiles WHERE id = 'me'")
+                .query(Integer.class)
+                .single();
+        String recentTrophy = jdbcClient.sql("SELECT recent_trophy FROM user_stats WHERE profile_id = 'me'")
+                .query(String.class)
+                .single();
+
+        assertThat(trophies).isEqualTo(1);
+        assertThat(recentTrophy).isEqualTo("30일 연속 달성!");
+    }
+
+    private Fixture fixture() {
         DataSource dataSource = new DriverManagerDataSource(
-                "jdbc:h2:mem:streak-test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                "jdbc:h2:mem:streak-test-" + System.nanoTime() + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
                 "sa",
                 ""
         );
@@ -51,7 +80,8 @@ class StreakServiceTest {
                             email VARCHAR(120),
                             current_streak INT DEFAULT 0,
                             best_streak INT DEFAULT 0,
-                            total_checks INT DEFAULT 0
+                            total_checks INT DEFAULT 0,
+                            trophies INT DEFAULT 0
                         )
                         """).update();
         jdbcClient.sql("""
@@ -102,10 +132,11 @@ class StreakServiceTest {
                             monthly_completion_rate INT,
                             checked_days_in_month INT,
                             heatmap VARCHAR(120),
+                            recent_trophy VARCHAR(120),
                             PRIMARY KEY (profile_id, stat_year, stat_month)
                         )
                         """).update();
-        return jdbcClient;
+        return new Fixture(dataSource, jdbcClient);
     }
 
     private void insertVerifiedCheckIn(JdbcClient jdbcClient, String id, Timestamp createdAt) {
@@ -116,5 +147,8 @@ class StreakServiceTest {
         jdbcClient.sql("INSERT INTO check_in_checks (check_in_id, profile_id) VALUES (:id, 'other')")
                 .param("id", id)
                 .update();
+    }
+
+    private record Fixture(DataSource dataSource, JdbcClient jdbcClient) {
     }
 }

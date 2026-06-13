@@ -1,5 +1,9 @@
 package mystreak.backend.streak;
 
+import jakarta.annotation.PostConstruct;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -7,6 +11,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.sql.DataSource;
 import mystreak.backend.common.AppTime;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -19,10 +24,21 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StreakService {
 
-    private final JdbcClient jdbcClient;
+    private static final int[] TROPHY_STREAK_DAYS = {30, 100, 300};
 
-    public StreakService(JdbcClient jdbcClient) {
+    private final JdbcClient jdbcClient;
+    private final DataSource dataSource;
+
+    public StreakService(JdbcClient jdbcClient, DataSource dataSource) {
         this.jdbcClient = jdbcClient;
+        this.dataSource = dataSource;
+    }
+
+    @PostConstruct
+    void ensureStreakColumns() {
+        if (tableExists("user_stats") && !columnExists("user_stats", "recent_trophy")) {
+            jdbcClient.sql("ALTER TABLE user_stats ADD COLUMN recent_trophy VARCHAR(120)").update();
+        }
     }
 
     @Transactional
@@ -35,18 +51,21 @@ public class StreakService {
         int currentStreak = currentStreak(daySet, today);
         int bestStreak = bestStreak(distinctDays);
         int totalChecks = dates.size();
+        int trophies = trophyCount(currentStreak);
 
         jdbcClient.sql("""
                         UPDATE profiles
                         SET current_streak = :current,
                             best_streak = GREATEST(best_streak, :best),
-                            total_checks = :total
+                            total_checks = :total,
+                            trophies = :trophies
                         WHERE id = :id
                         """)
                 .param("id", profileId)
                 .param("current", currentStreak)
                 .param("best", bestStreak)
                 .param("total", totalChecks)
+                .param("trophies", trophies)
                 .update();
 
         upsertMonthlyStats(profileId, today, daySet, dates, currentStreak, bestStreak, totalChecks);
@@ -144,11 +163,11 @@ public class StreakService {
                         INSERT INTO user_stats (
                             profile_id, stat_year, stat_month, current_streak, best_streak,
                             weekly_checks, weekly_goal, total_checks, active_pods,
-                            monthly_completion_rate, checked_days_in_month, heatmap
+                            monthly_completion_rate, checked_days_in_month, heatmap, recent_trophy
                         ) VALUES (
                             :profileId, :year, :month, :current, :best,
                             :weeklyChecks, 7, :total, :activePods,
-                            :rate, :checkedDays, :heatmap
+                            :rate, :checkedDays, :heatmap, :recentTrophy
                         )
                         ON DUPLICATE KEY UPDATE
                             current_streak = VALUES(current_streak),
@@ -158,7 +177,8 @@ public class StreakService {
                             active_pods = VALUES(active_pods),
                             monthly_completion_rate = VALUES(monthly_completion_rate),
                             checked_days_in_month = VALUES(checked_days_in_month),
-                            heatmap = VALUES(heatmap)
+                            heatmap = VALUES(heatmap),
+                            recent_trophy = VALUES(recent_trophy)
                         """)
                 .param("profileId", profileId)
                 .param("year", month.getYear())
@@ -171,7 +191,28 @@ public class StreakService {
                 .param("rate", monthlyCompletionRate)
                 .param("checkedDays", checkedDaysInMonth)
                 .param("heatmap", heatmap.toString())
+                .param("recentTrophy", recentTrophy(currentStreak))
                 .update();
+    }
+
+    private int trophyCount(int currentStreak) {
+        int count = 0;
+        for (int day : TROPHY_STREAK_DAYS) {
+            if (currentStreak >= day) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private String recentTrophy(int currentStreak) {
+        String trophy = null;
+        for (int day : TROPHY_STREAK_DAYS) {
+            if (currentStreak >= day) {
+                trophy = "%d일 연속 달성!".formatted(day);
+            }
+        }
+        return trophy;
     }
 
     /**
@@ -230,5 +271,39 @@ public class StreakService {
             best = Math.max(best, run);
         }
         return best;
+    }
+
+    private boolean columnExists(String table, String column) {
+        try (Connection connection = dataSource.getConnection();
+             ResultSet columns = connection.getMetaData().getColumns(null, null, table, column)) {
+            if (columns.next()) {
+                return true;
+            }
+        } catch (SQLException ignored) {
+        }
+
+        try (Connection connection = dataSource.getConnection();
+             ResultSet columns = connection.getMetaData().getColumns(null, null, table.toUpperCase(), column.toUpperCase())) {
+            return columns.next();
+        } catch (SQLException e) {
+            throw new IllegalStateException("스트릭 스키마 확인에 실패했습니다", e);
+        }
+    }
+
+    private boolean tableExists(String table) {
+        try (Connection connection = dataSource.getConnection();
+             ResultSet tables = connection.getMetaData().getTables(null, null, table, null)) {
+            if (tables.next()) {
+                return true;
+            }
+        } catch (SQLException ignored) {
+        }
+
+        try (Connection connection = dataSource.getConnection();
+             ResultSet tables = connection.getMetaData().getTables(null, null, table.toUpperCase(), null)) {
+            return tables.next();
+        } catch (SQLException e) {
+            throw new IllegalStateException("스트릭 테이블 확인에 실패했습니다", e);
+        }
     }
 }

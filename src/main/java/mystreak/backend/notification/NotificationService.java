@@ -11,6 +11,9 @@ import java.net.http.HttpResponse;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -235,7 +238,7 @@ public class NotificationService {
     private List<NotificationResponse> findNotifications(String profileId, String type) {
         String typeClause = type == null ? "" : "AND notification_type = :type";
         JdbcClient.StatementSpec statement = jdbcClient.sql("""
-                        SELECT id, title, body, meta, notification_type, urgent, is_read
+                        SELECT id, title, body, meta, notification_type, urgent, is_read, created_at
                         FROM notifications
                         WHERE (recipient_id = :profileId OR recipient_id IS NULL)
                         %s
@@ -249,12 +252,50 @@ public class NotificationService {
                         rs.getString("id"),
                         rs.getString("title"),
                         rs.getString("body"),
-                        rs.getString("meta"),
+                        relativeTime(rs.getTimestamp("created_at"), rs.getString("meta")),
                         rs.getString("notification_type"),
                         rs.getBoolean("urgent"),
                         rs.getBoolean("is_read")
                 ))
                 .list();
+    }
+
+    private String relativeTime(Timestamp createdAt, String fallback) {
+        if (createdAt == null) {
+            return fallback;
+        }
+
+        long seconds = Math.max(0, Duration.between(createdAt.toInstant(), Instant.now()).getSeconds());
+        if (seconds < 60) {
+            return "방금 전";
+        }
+
+        long minutes = seconds / 60;
+        if (minutes < 60) {
+            return "%d분 전".formatted(minutes);
+        }
+
+        long hours = minutes / 60;
+        if (hours < 24) {
+            return "%d시간 전".formatted(hours);
+        }
+
+        long days = hours / 24;
+        if (days < 7) {
+            return "%d일 전".formatted(days);
+        }
+
+        long weeks = days / 7;
+        if (weeks < 5) {
+            return "%d주 전".formatted(weeks);
+        }
+
+        long months = days / 30;
+        if (months < 12) {
+            return "%d개월 전".formatted(months);
+        }
+
+        return "%d년 전".formatted(days / 365);
     }
 
     private boolean columnExists(String table, String column) {
