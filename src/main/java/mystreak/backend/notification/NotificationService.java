@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,15 @@ public class NotificationService {
         if (!columnExists("notifications", "created_at")) {
             jdbcClient.sql("ALTER TABLE notifications ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP").update();
         }
+        jdbcClient.sql("""
+                        CREATE TABLE IF NOT EXISTS push_tokens (
+                            token VARCHAR(255) PRIMARY KEY,
+                            profile_id VARCHAR(64) NOT NULL,
+                            platform VARCHAR(20) NOT NULL,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """)
+                .update();
     }
 
     public List<NotificationResponse> getNotifications(String profileId, String type) {
@@ -80,6 +90,47 @@ public class NotificationService {
         String preview = commentText.length() > 40 ? commentText.substring(0, 40) + "..." : commentText;
         create(recipientId, "%s님이 내 인증에 댓글을 남겼어요".formatted(actorName),
                 "%s · %s".formatted(podName, preview), "방금 전", "comment", true);
+    }
+
+    @Transactional
+    public void registerPushToken(String profileId, String token, String platform) {
+        int updated = jdbcClient.sql("""
+                        UPDATE push_tokens
+                        SET profile_id = :profileId,
+                            platform = :platform,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE token = :token
+                        """)
+                .param("token", token)
+                .param("profileId", profileId)
+                .param("platform", platform)
+                .update();
+        if (updated > 0) {
+            return;
+        }
+
+        try {
+            jdbcClient.sql("""
+                            INSERT INTO push_tokens (token, profile_id, platform, updated_at)
+                            VALUES (:token, :profileId, :platform, CURRENT_TIMESTAMP)
+                            """)
+                    .param("token", token)
+                    .param("profileId", profileId)
+                    .param("platform", platform)
+                    .update();
+        } catch (DuplicateKeyException ignored) {
+            jdbcClient.sql("""
+                            UPDATE push_tokens
+                            SET profile_id = :profileId,
+                                platform = :platform,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE token = :token
+                            """)
+                    .param("token", token)
+                    .param("profileId", profileId)
+                    .param("platform", platform)
+                    .update();
+        }
     }
 
     private void create(String recipientId, String title, String body, String meta, String type, boolean urgent) {
