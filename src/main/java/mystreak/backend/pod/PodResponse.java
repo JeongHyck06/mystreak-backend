@@ -13,6 +13,7 @@ public record PodResponse(
         String tagLine,
         List<String> tags,
         boolean needsCheckIn,
-        String inviteCode
+        String inviteCode,
+        String avatarUrl
 ) {
 }

@@ -1,9 +1,14 @@
 package mystreak.backend.pod;
 
+import jakarta.annotation.PostConstruct;
 import java.security.SecureRandom;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Locale;
+import javax.sql.DataSource;
 import mystreak.backend.common.AppTime;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -17,17 +22,29 @@ public class PodService {
     private static final int MAX_ID_ATTEMPTS = 50;
 
     private final JdbcClient jdbcClient;
+    private final DataSource dataSource;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public PodService(JdbcClient jdbcClient) {
+    public PodService(JdbcClient jdbcClient, DataSource dataSource) {
         this.jdbcClient = jdbcClient;
+        this.dataSource = dataSource;
+    }
+
+    @PostConstruct
+    void ensurePodColumns() {
+        if (tableExists("pods") && !columnExists("pods", "avatar_url")) {
+            jdbcClient.sql("ALTER TABLE pods ADD COLUMN avatar_url VARCHAR(500)").update();
+        }
+        if (tableExists("pod_members")) {
+            jdbcClient.sql("UPDATE pod_members SET member_role = '방장' WHERE member_role = '나'").update();
+        }
     }
 
     public List<PodResponse> getMyPods(String profileId) {
         Timestamp startOfDay = AppTime.startOfToday();
         Timestamp startOfNextDay = AppTime.startOfTomorrow();
         return jdbcClient.sql("""
-                        SELECT p.id, p.name, p.description,
+                        SELECT p.id, p.name, p.description, p.avatar_url,
                                (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = p.id) AS member_count,
                                p.certified_today, p.max_members,
                                p.streak, p.tag_line, p.invite_code,
@@ -53,14 +70,15 @@ public class PodService {
                         rs.getInt("streak"),
                         rs.getString("tag_line"),
                         rs.getInt("my_checks_today") == 0,
-                        rs.getString("invite_code")
+                        rs.getString("invite_code"),
+                        rs.getString("avatar_url")
                 ))
                 .list();
     }
 
     public PodResponse getPod(String podId) {
         return jdbcClient.sql("""
-                        SELECT id, name, description,
+                        SELECT id, name, description, avatar_url,
                                (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = pods.id) AS member_count,
                                certified_today, max_members,
                                streak, tag_line, needs_check_in, invite_code
@@ -78,7 +96,8 @@ public class PodService {
                         rs.getInt("streak"),
                         rs.getString("tag_line"),
                         rs.getBoolean("needs_check_in"),
-                        rs.getString("invite_code")
+                        rs.getString("invite_code"),
+                        rs.getString("avatar_url")
                 ))
                 .optional()
                 .orElseThrow(() -> new PodNotFoundException(podId));
@@ -92,7 +111,7 @@ public class PodService {
         insertTags(id, request.tags());
         jdbcClient.sql("""
                         INSERT INTO pod_members (pod_id, profile_id, member_role, streak, checked_in_today)
-                        VALUES (:podId, :profileId, '나', 0, FALSE)
+                        VALUES (:podId, :profileId, '방장', 0, FALSE)
                         """)
                 .param("podId", id)
                 .param("profileId", profileId)
@@ -118,12 +137,13 @@ public class PodService {
             String id = attempt == 0 ? slug : slug + "-" + randomSuffix(6);
             try {
                 jdbcClient.sql("""
-                                INSERT INTO pods (id, name, description, member_count, certified_today, max_members, streak, tag_line, needs_check_in, invite_code)
-                                VALUES (:id, :name, :description, 1, 0, :maxMembers, 0, :tagLine, TRUE, :inviteCode)
+                                INSERT INTO pods (id, name, description, avatar_url, member_count, certified_today, max_members, streak, tag_line, needs_check_in, invite_code)
+                                VALUES (:id, :name, :description, :avatarUrl, 1, 0, :maxMembers, 0, :tagLine, TRUE, :inviteCode)
                                 """)
                         .param("id", id)
                         .param("name", request.name())
                         .param("description", request.description())
+                        .param("avatarUrl", blankToNull(request.avatarUrl()))
                         .param("maxMembers", request.maxMembers())
                         .param("tagLine", request.tagLine())
                         .param("inviteCode", generateInviteCode(id))
@@ -138,7 +158,7 @@ public class PodService {
 
     public PodResponse previewJoin(String inviteCode) {
         return jdbcClient.sql("""
-                        SELECT id, name, description,
+                        SELECT id, name, description, avatar_url,
                                (SELECT COUNT(*) FROM pod_members pmc WHERE pmc.pod_id = pods.id) AS member_count,
                                certified_today, max_members,
                                streak, tag_line, needs_check_in, invite_code
@@ -156,7 +176,8 @@ public class PodService {
                         rs.getInt("streak"),
                         rs.getString("tag_line"),
                         rs.getBoolean("needs_check_in"),
-                        rs.getString("invite_code")
+                        rs.getString("invite_code"),
+                        rs.getString("avatar_url")
                 ))
                 .optional()
                 .orElseThrow(() -> new PodNotFoundException(inviteCode));
@@ -168,7 +189,7 @@ public class PodService {
         jdbcClient.sql("""
                         INSERT INTO pod_members (pod_id, profile_id, member_role, streak, checked_in_today)
                         VALUES (:podId, :profileId, '멤버', 0, FALSE)
-                        ON DUPLICATE KEY UPDATE member_role = VALUES(member_role)
+                        ON DUPLICATE KEY UPDATE member_role = member_role
                         """)
                 .param("podId", pod.id())
                 .param("profileId", profileId)
@@ -220,7 +241,7 @@ public class PodService {
                 .update();
     }
 
-    public List<PodMemberResponse> getMembers(String podId) {
+    public List<PodMemberResponse> getMembers(String profileId, String podId) {
         getPod(podId);
         return jdbcClient.sql("""
                         SELECT p.id, p.name, p.handle, p.avatar_url, pm.streak, pm.checked_in_today, pm.member_role
@@ -236,7 +257,7 @@ public class PodService {
                         rs.getString("handle"),
                         rs.getInt("streak"),
                         rs.getBoolean("checked_in_today"),
-                        rs.getString("member_role"),
+                        profileId.equals(rs.getString("id")) ? "나" : rs.getString("member_role"),
                         rs.getString("avatar_url")
                 ))
                 .list();
@@ -262,7 +283,8 @@ public class PodService {
             int streak,
             String tagLine,
             boolean needsCheckIn,
-            String inviteCode
+            String inviteCode,
+            String avatarUrl
     ) {
         return new PodResponse(
                 id,
@@ -275,7 +297,8 @@ public class PodService {
                 tagLine,
                 getTags(id),
                 needsCheckIn,
-                inviteCode
+                inviteCode,
+                avatarUrl
         );
     }
 
@@ -335,5 +358,43 @@ public class PodService {
                 .query(Integer.class)
                 .single();
         return count != null && count > 0;
+    }
+
+    private boolean tableExists(String tableName) {
+        try (Connection connection = dataSource.getConnection();
+             ResultSet tables = connection.getMetaData().getTables(null, null, tableName, null)) {
+            if (tables.next()) {
+                return true;
+            }
+        } catch (SQLException ignored) {
+        }
+
+        try (Connection connection = dataSource.getConnection();
+             ResultSet tables = connection.getMetaData().getTables(null, null, tableName.toUpperCase(Locale.ROOT), null)) {
+            return tables.next();
+        } catch (SQLException e) {
+            throw new IllegalStateException("팟 테이블 확인에 실패했습니다", e);
+        }
+    }
+
+    private boolean columnExists(String tableName, String columnName) {
+        try (Connection connection = dataSource.getConnection();
+             ResultSet columns = connection.getMetaData().getColumns(null, null, tableName, columnName)) {
+            if (columns.next()) {
+                return true;
+            }
+        } catch (SQLException ignored) {
+        }
+
+        try (Connection connection = dataSource.getConnection();
+             ResultSet columns = connection.getMetaData().getColumns(null, null, tableName.toUpperCase(Locale.ROOT), columnName.toUpperCase(Locale.ROOT))) {
+            return columns.next();
+        } catch (SQLException e) {
+            throw new IllegalStateException("팟 스키마 확인에 실패했습니다", e);
+        }
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

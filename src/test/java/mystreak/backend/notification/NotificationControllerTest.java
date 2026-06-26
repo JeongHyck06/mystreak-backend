@@ -2,6 +2,7 @@ package mystreak.backend.notification;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -54,6 +55,18 @@ class NotificationControllerTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].read").value(true));
+    }
+
+    @Test
+    void deleteReadReturnsRemainingNotifications() throws Exception {
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
+        when(notificationService.deleteRead("me"))
+                .thenReturn(List.of(notification(false)));
+
+        mockMvc.perform(delete("/api/notifications/read")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].read").value(false));
     }
 
     @Test

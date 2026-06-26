@@ -81,8 +81,11 @@ public class PodController {
 
     @Operation(summary = "팟 멤버 목록을 조회합니다")
     @GetMapping("/{podId}/members")
-    public List<PodMemberResponse> getMembers(@PathVariable String podId) {
-        return podService.getMembers(podId);
+    public List<PodMemberResponse> getMembers(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @PathVariable String podId
+    ) {
+        return podService.getMembers(authService.requireUserId(authorization), podId);
     }
 
     @Operation(summary = "핸들로 팟 멤버를 초대합니다")

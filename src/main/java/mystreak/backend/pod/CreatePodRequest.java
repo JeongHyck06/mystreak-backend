@@ -12,6 +12,7 @@ public record CreatePodRequest(
         @NotBlank @Size(max = 100) String description,
         @Min(2) @Max(30) int maxMembers,
         @NotBlank String tagLine,
-        @NotEmpty List<@NotBlank String> tags
+        @NotEmpty List<@NotBlank String> tags,
+        @Size(max = 500) String avatarUrl
 ) {
 }

@@ -54,7 +54,7 @@ class PodControllerTest {
         when(authService.requireUserId("Bearer access-token")).thenReturn("me");
         when(podService.createPod(any(String.class), any(CreatePodRequest.class))).thenReturn(pod());
 
-        CreatePodRequest request = new CreatePodRequest("새벽 5시 러닝 크루", "아침 5시, 함께 달립니다.", 8, "운동 · 사진 인증", List.of("#러닝"));
+        CreatePodRequest request = new CreatePodRequest("새벽 5시 러닝 크루", "아침 5시, 함께 달립니다.", 8, "운동 · 사진 인증", List.of("#러닝"), "https://example.com/pod.jpg");
 
         mockMvc.perform(post("/api/pods")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer access-token")
@@ -91,10 +91,12 @@ class PodControllerTest {
 
     @Test
     void getMembersReturnsPodMembers() throws Exception {
-        when(podService.getMembers("running"))
+        when(authService.requireUserId("Bearer access-token")).thenReturn("me");
+        when(podService.getMembers("me", "running"))
                 .thenReturn(List.of(new PodMemberResponse("me", "김다혜", "@doitall", 12, true, "나", "https://example.com/me.jpg")));
 
-        mockMvc.perform(get("/api/pods/running/members"))
+        mockMvc.perform(get("/api/pods/running/members")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].checkedInToday").value(true));
     }
@@ -120,6 +122,6 @@ class PodControllerTest {
     }
 
     private PodResponse pod() {
-        return new PodResponse("running", "새벽 5시 러닝 크루", "아침 5시, 함께 달립니다.", 248, 6, 8, 12, "운동 · 사진 인증", List.of("#러닝", "#새벽기상", "#운동"), false, "ABC123");
+        return new PodResponse("running", "새벽 5시 러닝 크루", "아침 5시, 함께 달립니다.", 248, 6, 8, 12, "운동 · 사진 인증", List.of("#러닝", "#새벽기상", "#운동"), false, "ABC123", "https://example.com/pod.jpg");
     }
 }

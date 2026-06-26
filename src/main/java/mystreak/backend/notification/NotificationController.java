@@ -8,6 +8,7 @@ import mystreak.backend.auth.AuthService;
 import mystreak.backend.config.OpenApiConfig;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,6 +47,13 @@ public class NotificationController {
     public List<NotificationResponse> markAllRead(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         String profileId = authService.requireUserId(authorization);
         return notificationService.markAllRead(profileId);
+    }
+
+    @Operation(summary = "읽은 알림을 삭제합니다")
+    @DeleteMapping("/read")
+    public List<NotificationResponse> deleteRead(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        String profileId = authService.requireUserId(authorization);
+        return notificationService.deleteRead(profileId);
     }
 
     @Operation(summary = "푸시 알림 토큰을 등록합니다")
