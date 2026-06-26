@@ -114,6 +114,9 @@ public class CheckInService {
     @Transactional
     public void deleteCheckIn(String profileId, String checkInId) {
         requireOwnership(profileId, checkInId);
+        if (!isCheckInCreatedToday(checkInId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지난 날짜 인증은 취소할 수 없어요.");
+        }
         String podId = podIdOf(checkInId);
         jdbcClient.sql("DELETE FROM check_in_likes WHERE check_in_id = :id").param("id", checkInId).update();
         jdbcClient.sql("DELETE FROM check_in_checks WHERE check_in_id = :id").param("id", checkInId).update();
@@ -150,6 +153,14 @@ public class CheckInService {
         CheckInResponse checkIn = getCheckIn(checkInId, profileId);
         if (checkIn.authorId().equals(profileId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "본인 인증은 체크할 수 없어요.");
+        }
+        boolean checkedByMe = jdbcClient.sql("SELECT COUNT(*) FROM check_in_checks WHERE check_in_id = :id AND profile_id = :me")
+                .param("id", checkInId)
+                .param("me", profileId)
+                .query(Integer.class)
+                .single() > 0;
+        if (checkedByMe && !isCheckInCreatedToday(checkInId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지난 날짜 인증 체크는 취소할 수 없어요.");
         }
         int removed = jdbcClient.sql("DELETE FROM check_in_checks WHERE check_in_id = :id AND profile_id = :me")
                 .param("id", checkInId)
@@ -241,6 +252,22 @@ public class CheckInService {
                 .query(String.class)
                 .optional()
                 .orElse(null);
+    }
+
+    private boolean isCheckInCreatedToday(String checkInId) {
+        Integer count = jdbcClient.sql("""
+                        SELECT COUNT(*)
+                        FROM check_ins
+                        WHERE id = :id
+                          AND created_at >= :startOfDay
+                          AND created_at < :startOfNextDay
+                        """)
+                .param("id", checkInId)
+                .param("startOfDay", AppTime.startOfToday())
+                .param("startOfNextDay", AppTime.startOfTomorrow())
+                .query(Integer.class)
+                .single();
+        return count != null && count > 0;
     }
 
     private String profileName(String profileId) {

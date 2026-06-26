@@ -1,11 +1,14 @@
 package mystreak.backend.media;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URL;
 import mystreak.backend.auth.AuthService;
 import mystreak.backend.common.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -54,5 +57,16 @@ class MediaUploadControllerTest {
                 .andExpect(jsonPath("$.mediaUrl").value("https://bucket.s3.ap-northeast-2.amazonaws.com/check-ins/me/proof.jpg"))
                 .andExpect(jsonPath("$.objectKey").value("check-ins/me/proof.jpg"))
                 .andExpect(jsonPath("$.expiresInSeconds").value(600));
+    }
+
+    @Test
+    void readMediaRedirectsToPresignedReadUrl() throws Exception {
+        when(mediaUploadService.createReadUrl("check-ins/me/proof.jpg"))
+                .thenReturn(new URL("https://bucket.s3.ap-northeast-2.amazonaws.com/check-ins/me/proof.jpg?signature=read"));
+
+        mockMvc.perform(get("/api/media/files")
+                        .param("objectKey", "check-ins/me/proof.jpg"))
+                .andExpect(status().isFound())
+                .andExpect(header().string(HttpHeaders.LOCATION, "https://bucket.s3.ap-northeast-2.amazonaws.com/check-ins/me/proof.jpg?signature=read"));
     }
 }

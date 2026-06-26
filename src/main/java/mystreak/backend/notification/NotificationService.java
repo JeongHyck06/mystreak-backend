@@ -91,6 +91,14 @@ public class NotificationService {
     }
 
     @Transactional
+    public List<NotificationResponse> deleteRead(String profileId) {
+        jdbcClient.sql("DELETE FROM notifications WHERE is_read = TRUE AND (recipient_id = :profileId OR recipient_id IS NULL)")
+                .param("profileId", profileId)
+                .update();
+        return getNotifications(profileId, null);
+    }
+
+    @Transactional
     public void notifyCheck(String recipientId, String actorName, String podName, int checks) {
         create(recipientId, "%s님이 내 인증을 체크했어요".formatted(actorName),
                 "%s · %d명이 확인했어요".formatted(podName, checks),

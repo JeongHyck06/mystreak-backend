@@ -10,8 +10,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -65,6 +68,24 @@ public class MediaUploadService {
         URL uploadUrl = presignedRequest.url();
 
         return new MediaUploadResponse(uploadUrl.toString(), mediaUrlFor(objectKey), objectKey, expiresInSeconds);
+    }
+
+    public URL createReadUrl(String objectKey) {
+        validateConfiguration();
+        if (isBlank(objectKey) || objectKey.contains("..")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "잘못된 미디어 경로입니다.");
+        }
+
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(properties.getBucket())
+                .key(objectKey)
+                .build();
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(10))
+                .getObjectRequest(getObjectRequest)
+                .build();
+        PresignedGetObjectRequest presignedRequest = presigner.presignGetObject(presignRequest);
+        return presignedRequest.url();
     }
 
     @PreDestroy
